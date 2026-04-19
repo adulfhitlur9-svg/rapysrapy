@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { searchUser } from "@/server/users.functions";
+import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/")({
 type SearchResult = Awaited<ReturnType<typeof searchUser>>;
 
 function HomePage() {
+  const { user, isAdmin, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -50,12 +52,46 @@ function HomePage() {
         <h1 className="text-xl font-bold tracking-tight">
           <span className="text-primary">::</span> userlookup
         </h1>
-        <Link
-          to="/admin/import"
-          className="text-sm text-muted-foreground hover:text-foreground transition"
-        >
-          Import danych →
-        </Link>
+        <div className="flex items-center gap-4 text-sm">
+          {user ? (
+            <>
+              <span className="text-muted-foreground hidden sm:inline">
+                <span className="text-foreground font-mono font-semibold">{user.nick}</span>
+                {isAdmin && (
+                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary align-middle">
+                    ADMIN
+                  </span>
+                )}
+              </span>
+              {isAdmin && (
+                <Link
+                  to="/admin/accounts"
+                  className="text-muted-foreground hover:text-foreground transition"
+                >
+                  Panel admina
+                </Link>
+              )}
+              <button
+                onClick={() => logout()}
+                className="text-muted-foreground hover:text-destructive transition"
+              >
+                Wyloguj
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="text-muted-foreground hover:text-foreground transition">
+                Logowanie
+              </Link>
+              <Link
+                to="/register"
+                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90"
+              >
+                Rejestracja
+              </Link>
+            </>
+          )}
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center px-4 pt-16 pb-24">
@@ -70,25 +106,49 @@ function HomePage() {
             Wpisz nick. Sprawdź premium, IP, Discord — w mniej niż sekundę.
           </p>
 
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="np. Zatwardzeniuch"
-              maxLength={64}
-              autoComplete="off"
-              spellCheck={false}
-              className="flex-1 h-14 px-5 rounded-xl bg-input border border-border focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none text-lg font-mono transition"
-            />
-            <button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="h-14 px-8 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-[var(--shadow-glow)]"
-            >
-              {loading ? <Spinner /> : "Szukaj"}
-            </button>
-          </form>
+          {user ? (
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="np. Zatwardzeniuch"
+                maxLength={64}
+                autoComplete="off"
+                spellCheck={false}
+                className="flex-1 h-14 px-5 rounded-xl bg-input border border-border focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none text-lg font-mono transition"
+              />
+              <button
+                type="submit"
+                disabled={loading || !query.trim()}
+                className="h-14 px-8 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-[var(--shadow-glow)]"
+              >
+                {loading ? <Spinner /> : "Szukaj"}
+              </button>
+            </form>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card/50 p-8 text-center">
+              <div className="text-3xl mb-3">🔒</div>
+              <h3 className="text-lg font-semibold mb-2">Dostęp tylko dla zalogowanych</h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                Załóż darmowe konto żeby przeszukiwać bazę.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <Link
+                  to="/register"
+                  className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90"
+                >
+                  Załóż konto
+                </Link>
+                <Link
+                  to="/login"
+                  className="px-5 py-2.5 rounded-xl border border-border hover:bg-muted font-semibold"
+                >
+                  Zaloguj się
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="w-full max-w-5xl mt-12">
