@@ -14,6 +14,157 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          ban_reason: string | null
+          banned: boolean
+          banned_at: string | null
+          created_at: string
+          email: string
+          email_lower: string
+          id: string
+          last_login_at: string | null
+          last_login_ip: string | null
+          nick: string
+          nick_lower: string
+          password: string
+          registration_ip: string | null
+          role: Database["public"]["Enums"]["account_role"]
+          updated_at: string
+        }
+        Insert: {
+          ban_reason?: string | null
+          banned?: boolean
+          banned_at?: string | null
+          created_at?: string
+          email: string
+          email_lower: string
+          id?: string
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          nick: string
+          nick_lower: string
+          password: string
+          registration_ip?: string | null
+          role?: Database["public"]["Enums"]["account_role"]
+          updated_at?: string
+        }
+        Update: {
+          ban_reason?: string | null
+          banned?: boolean
+          banned_at?: string | null
+          created_at?: string
+          email?: string
+          email_lower?: string
+          id?: string
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          nick?: string
+          nick_lower?: string
+          password?: string
+          registration_ip?: string | null
+          role?: Database["public"]["Enums"]["account_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      login_logs: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          failure_reason: string | null
+          id: number
+          ip: string | null
+          nick_attempted: string | null
+          success: boolean
+          user_agent: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: number
+          ip?: string | null
+          nick_attempted?: string | null
+          success: boolean
+          user_agent?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: number
+          ip?: string | null
+          nick_attempted?: string | null
+          success?: boolean
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "login_logs_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registration_attempts: {
+        Row: {
+          created_at: string
+          id: number
+          ip: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          ip: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          ip?: string
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          account_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+          token: string
+          user_agent: string | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+          token: string
+          user_agent?: string | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+          token?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string
@@ -61,7 +212,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      account_role: "user" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -188,6 +339,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_role: ["user", "admin"],
+    },
   },
 } as const
