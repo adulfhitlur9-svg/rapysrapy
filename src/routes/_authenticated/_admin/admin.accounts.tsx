@@ -8,7 +8,7 @@ import {
   adminDeleteAccount,
 } from "@/server/auth.functions";
 
-export const Route = createFileRoute("/_authenticated/_admin/accounts")({
+export const Route = createFileRoute("/_authenticated/_admin/admin/accounts")({
   head: () => ({
     meta: [
       { title: "Panel admina — konta" },
