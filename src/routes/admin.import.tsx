@@ -26,12 +26,24 @@ export function ImportPage() {
   const [authBusy, setAuthBusy] = useState(false);
 
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, inserted: 0, skipped: 0 });
+  const [progress, setProgress] = useState({
+    done: 0,
+    inserted: 0,
+    skipped: 0,
+    bytesRead: 0,
+    totalBytes: 0,
+    batchNum: 0,
+    elapsedMs: 0,
+    lastBatchMs: 0,
+  });
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const append = (msg: string) => setLog((l) => [...l.slice(-80), msg]);
+  const append = (msg: string) => {
+    const ts = new Date().toLocaleTimeString();
+    setLog((l) => [...l.slice(-200), `[${ts}] ${msg}`]);
+  };
 
   // Auto-login z sessionStorage (token żyje tylko w bieżącej karcie)
   useEffect(() => {
