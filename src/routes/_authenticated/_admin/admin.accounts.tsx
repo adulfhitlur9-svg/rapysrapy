@@ -169,6 +169,16 @@ function AdminAccountsPage() {
           >
             Logi logowań ({logs.length})
           </button>
+          <button
+            onClick={() => setTab("hashes")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
+              tab === "hashes"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Hashe haseł
+          </button>
         </div>
 
         {tab === "accounts" && (
