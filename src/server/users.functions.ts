@@ -219,7 +219,6 @@ export const bulkImport = createServerFn({ method: "POST" })
       last_ip: string | null;
       premium: boolean;
       discord_email: string | null;
-      raw: unknown;
     }> = [];
 
     let skipped = 0;
@@ -251,7 +250,6 @@ export const bulkImport = createServerFn({ method: "POST" })
           last_ip: r.authorization?.lastIP ?? null,
           premium: !!r.authorization?.premium,
           discord_email: r.connectedAccounts?.discordEmail ?? null,
-          raw: r,
         });
       }
     }
@@ -287,9 +285,7 @@ export const bulkImport = createServerFn({ method: "POST" })
 
       if (freshRows.length === 0) continue;
 
-      const { error, count } = await supabaseAdmin.from("users").upsert(freshRows, {
-        onConflict: "name_lower",
-        ignoreDuplicates: true,
+      const { error, count } = await supabaseAdmin.from("users").insert(freshRows, {
         count: "exact",
       });
 
