@@ -162,7 +162,9 @@ export function ImportPage() {
         try {
           const res = await bulkImport({ data: { token, records } });
           const dt = performance.now() - t0;
-          if (res.error) append(`⚠ ${res.error}`);
+          if (res.error) {
+            throw new Error(res.error);
+          }
           totalInserted += res.inserted;
           totalSkipped += res.skipped;
           setProgress((p) => ({
@@ -180,6 +182,16 @@ export function ImportPage() {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           append(`✗ Batch #${batchNum} błąd: ${msg}`);
+          setError(msg);
+          setPhase("Błąd");
+          cancelRef.current = true;
+          if (workerRef.current) {
+            workerRef.current.terminate();
+            workerRef.current = null;
+          }
+          window.clearInterval(ticker);
+          setBusy(false);
+          break;
         }
       }
       processing = false;
