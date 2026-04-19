@@ -29,14 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "rapysrapy" },
+      { name: "description", content: "rapy srapy wyciek pozdro" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "rapysrapy" },
+      { property: "og:description", content: "rapy srapy wyciek pozdro" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "rapysrapy" },
+      { name: "twitter:description", content: "rapy srapy wyciek pozdro" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3f1fcd81-56e6-4d2b-b129-a109505b2dd9/id-preview-2bc4bf17--32b69c0d-358d-4927-8f04-939525c28257.lovable.app-1776597653134.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3f1fcd81-56e6-4d2b-b129-a109505b2dd9/id-preview-2bc4bf17--32b69c0d-358d-4927-8f04-939525c28257.lovable.app-1776597653134.png" },
     ],
     links: [
       {
