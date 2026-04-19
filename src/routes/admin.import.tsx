@@ -18,6 +18,10 @@ export const Route = createFileRoute("/admin/import")({
 const BATCH_SIZE = 500;
 const TOKEN_KEY = "admin_import_token";
 
+if (import.meta.env.DEV) {
+  console.info("admin.import build marker", "2026-04-19T15:58-fix2");
+}
+
 export function ImportPage() {
   const initial = Route.useLoaderData();
   const [total, setTotal] = useState(initial.total);

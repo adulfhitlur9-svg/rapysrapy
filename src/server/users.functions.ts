@@ -213,13 +213,15 @@ export const bulkImport = createServerFn({ method: "POST" })
       return { inserted: 0, skipped: 0, error: "Unauthorized" };
     }
     const rows: Array<{
-      name: string;
-      name_lower: string;
-      password: string | null;
-      first_ip: string | null;
-      last_ip: string | null;
-      premium: boolean;
-      discord_email: string | null;
+      normalizedName: string;
+      insertRow: {
+        name: string;
+        password: string | null;
+        first_ip: string | null;
+        last_ip: string | null;
+        premium: boolean;
+        discord_email: string | null;
+      };
     }> = [];
 
     let skipped = 0;
@@ -244,13 +246,15 @@ export const bulkImport = createServerFn({ method: "POST" })
 
         seenNames.add(normalizedName);
         rows.push({
-          name: r.name.trim(),
-          name_lower: normalizedName,
-          password: r.authorization?.password ?? null,
-          first_ip: r.authorization?.firstIP ?? null,
-          last_ip: r.authorization?.lastIP ?? null,
-          premium: !!r.authorization?.premium,
-          discord_email: r.connectedAccounts?.discordEmail ?? null,
+          normalizedName,
+          insertRow: {
+            name: r.name.trim(),
+            password: r.authorization?.password ?? null,
+            first_ip: r.authorization?.firstIP ?? null,
+            last_ip: r.authorization?.lastIP ?? null,
+            premium: !!r.authorization?.premium,
+            discord_email: r.connectedAccounts?.discordEmail ?? null,
+          },
         });
       }
     }
@@ -263,7 +267,7 @@ export const bulkImport = createServerFn({ method: "POST" })
 
     for (let i = 0; i < rows.length; i += DB_CHUNK_SIZE) {
       const chunk = rows.slice(i, i + DB_CHUNK_SIZE);
-      const names = chunk.map((row) => row.name_lower);
+      const names = chunk.map((row) => row.normalizedName);
 
       const { data: existingRows, error: existingError } = await supabaseAdmin
         .from("users")
@@ -281,19 +285,29 @@ export const bulkImport = createServerFn({ method: "POST" })
           .filter((value): value is string => typeof value === "string" && value.length > 0),
       );
 
-      const freshRows = chunk.filter((row) => !existing.has(row.name_lower));
+      const freshRows = chunk.filter((row) => !existing.has(row.normalizedName));
       skipped += chunk.length - freshRows.length;
 
       if (freshRows.length === 0) continue;
 
-      const insertRows = freshRows.map(({ name_lower, ...row }) => row);
+      const insertRows = freshRows.map((entry) => ({
+        name: entry.insertRow.name,
+        password: entry.insertRow.password,
+        first_ip: entry.insertRow.first_ip,
+        last_ip: entry.insertRow.last_ip,
+        premium: entry.insertRow.premium,
+        discord_email: entry.insertRow.discord_email,
+      }));
 
       const { error, count } = await supabaseAdmin.from("users").insert(insertRows, {
         count: "exact",
       });
 
       if (error) {
-        console.error("bulkImport insert error", error);
+        console.error("bulkImport insert error", error, {
+          sampleKeys: Object.keys(insertRows[0] ?? {}),
+          sampleRow: insertRows[0] ?? null,
+        });
         return { inserted, skipped, error: error.message };
       }
 
