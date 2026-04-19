@@ -22,6 +22,7 @@ export const Route = createFileRoute("/")({
 type SearchResult = Awaited<ReturnType<typeof searchUser>>;
 
 function HomePage() {
+  const { user, isAdmin, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
