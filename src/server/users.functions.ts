@@ -286,7 +286,9 @@ export const bulkImport = createServerFn({ method: "POST" })
 
       if (freshRows.length === 0) continue;
 
-      const { error, count } = await supabaseAdmin.from("users").insert(freshRows, {
+      const insertRows = freshRows.map(({ name_lower, ...row }) => row);
+
+      const { error, count } = await supabaseAdmin.from("users").insert(insertRows, {
         count: "exact",
       });
 
