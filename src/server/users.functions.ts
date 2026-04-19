@@ -90,12 +90,25 @@ const recordSchema = z.object({
 });
 
 const importSchema = z.object({
-  records: z.array(z.unknown()).min(1).max(2000),
+  token: z.string().min(1),
+  records: z.array(z.unknown()).min(1).max(5000),
 });
+
+export const verifyAdminToken = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ token: z.string().min(1) }).parse(input))
+  .handler(async ({ data }) => {
+    const expected = process.env.ADMIN_IMPORT_TOKEN;
+    if (!expected) return { ok: false as const, error: "Brak ADMIN_IMPORT_TOKEN w konfiguracji serwera" };
+    return { ok: data.token === expected, error: null };
+  });
 
 export const bulkImport = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => importSchema.parse(input))
   .handler(async ({ data }) => {
+    const expected = process.env.ADMIN_IMPORT_TOKEN;
+    if (!expected || data.token !== expected) {
+      return { inserted: 0, skipped: 0, error: "Unauthorized" };
+    }
     const rows: Array<{
       name: string;
       password: string | null;
