@@ -102,12 +102,24 @@ export function ImportPage() {
     setBusy(true);
     setError(null);
     setLog([]);
-    setProgress({ done: 0, inserted: 0, skipped: 0 });
-    append(`Wczytuję ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) strumieniowo…`);
+    const startedAt = performance.now();
+    setProgress({
+      done: 0,
+      inserted: 0,
+      skipped: 0,
+      bytesRead: 0,
+      totalBytes: file.size,
+      batchNum: 0,
+      elapsedMs: 0,
+      lastBatchMs: 0,
+    });
+    append(`📂 ${file.name} — ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+    append(`▶ Start parsowania strumieniowego, batch = ${BATCH_SIZE}`);
 
     const reader = file.stream().getReader();
     const decoder = new TextDecoder("utf-8");
 
+    // Bufor zawiera tylko nieprzeskanowaną resztę. Skanujemy linearnie od indeksu 0.
     let buffer = "";
     let depth = 0;
     let inString = false;
@@ -118,36 +130,63 @@ export function ImportPage() {
     let totalDone = 0;
     let totalInserted = 0;
     let totalSkipped = 0;
+    let totalBytes = 0;
+    let batchNum = 0;
+    let chunkCount = 0;
 
     const flush = async () => {
       if (batch.length === 0) return;
-      const res = await sendBatch(batch);
+      batchNum++;
+      const t0 = performance.now();
+      const toSend = batch;
+      batch = [];
+      append(`⇪ Batch #${batchNum}: wysyłam ${toSend.length.toLocaleString()} rekordów…`);
+      const res = await sendBatch(toSend);
+      const dt = performance.now() - t0;
       totalInserted += res.inserted;
       totalSkipped += res.skipped;
-      totalDone += batch.length;
-      setProgress({ done: totalDone, inserted: totalInserted, skipped: totalSkipped });
-      batch = [];
+      totalDone += toSend.length;
+      const elapsed = performance.now() - startedAt;
+      setProgress({
+        done: totalDone,
+        inserted: totalInserted,
+        skipped: totalSkipped,
+        bytesRead: totalBytes,
+        totalBytes: file.size,
+        batchNum,
+        elapsedMs: elapsed,
+        lastBatchMs: dt,
+      });
+      append(
+        `✓ Batch #${batchNum} OK w ${(dt / 1000).toFixed(1)}s — wstawione +${res.inserted}, pominięte +${res.skipped}`,
+      );
     };
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        chunkCount++;
+        totalBytes += value.byteLength;
         buffer += decoder.decode(value, { stream: true });
 
-        for (let i = 0; i < buffer.length; i++) {
+        if (chunkCount % 20 === 0) {
+          const mb = (totalBytes / 1024 / 1024).toFixed(1);
+          const pct = ((totalBytes / file.size) * 100).toFixed(1);
+          append(`… przeczytano ${mb} MB (${pct}%) · bufor ${(buffer.length / 1024).toFixed(0)} KB`);
+        }
+
+        // Skan liniowy bufora
+        let i = 0;
+        while (i < buffer.length) {
           const ch = buffer[i];
           if (inString) {
             if (escape) escape = false;
             else if (ch === "\\") escape = true;
             else if (ch === '"') inString = false;
-            continue;
-          }
-          if (ch === '"') {
+          } else if (ch === '"') {
             inString = true;
-            continue;
-          }
-          if (ch === "{") {
+          } else if (ch === "{") {
             if (depth === 0) objStart = i;
             depth++;
           } else if (ch === "}") {
@@ -160,28 +199,40 @@ export function ImportPage() {
                 totalSkipped++;
               }
               objStart = -1;
+
               if (batch.length >= BATCH_SIZE) {
-                // utnij przetworzony fragment, kontynuuj parsowanie reszty
+                // Utnij przeskanowany fragment, kontynuuj parsowanie reszty
                 buffer = buffer.slice(i + 1);
-                i = -1;
+                i = -1; // bo zaraz i++
                 await flush();
               }
             }
           }
+          i++;
         }
 
-        // jeśli jesteśmy w środku obiektu, zachowaj od jego początku, inaczej zrzuć bufor
+        // Po pełnym przeskanowaniu obecnego bufora:
+        // - jeśli jesteśmy w środku obiektu → zachowaj od jego początku
+        // - jeśli nie → wyrzuć cały bufor (to były przecinki/białe znaki/nawiasy tablicy)
         if (depth > 0 && objStart >= 0) {
           buffer = buffer.slice(objStart);
           objStart = 0;
-        } else if (depth === 0) {
+        } else {
           buffer = "";
         }
+
+        // Aktualizuj postęp odczytu między batchami (żeby pasek się ruszał)
+        setProgress((p) => ({ ...p, bytesRead: totalBytes, elapsedMs: performance.now() - startedAt }));
       }
 
       buffer += decoder.decode();
+      // Domknij ewentualny ostatni obiekt jeśli nie był jeszcze pushed
+      append(`◼ Koniec strumienia. Wysyłam ostatni batch (${batch.length} rekordów)…`);
       await flush();
-      append(`✓ Gotowe. Wstawiono ${totalInserted.toLocaleString()}, pominięto ${totalSkipped.toLocaleString()}.`);
+      const total = (performance.now() - startedAt) / 1000;
+      append(
+        `🎉 Gotowe w ${total.toFixed(1)}s · wstawione ${totalInserted.toLocaleString()} · pominięte ${totalSkipped.toLocaleString()} · batchy ${batchNum}`,
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
