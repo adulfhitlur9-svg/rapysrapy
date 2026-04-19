@@ -89,6 +89,108 @@ const recordSchema = z.object({
     .nullish(),
 });
 
+type ImportRecord = z.infer<typeof recordSchema>;
+
+const DB_CHUNK_SIZE = 500;
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asTrimmedString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y", "premium"].includes(normalized)) return true;
+    if (["false", "0", "no", "n", "free"].includes(normalized)) return false;
+  }
+  return null;
+}
+
+function normalizeImportRecord(value: unknown): ImportRecord | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+
+  const authorization =
+    asObject(obj.authorization) ?? asObject(obj.auth) ?? asObject(obj.authorizationData);
+  const connectedAccounts =
+    asObject(obj.connectedAccounts) ?? asObject(obj.accounts) ?? asObject(obj.connected_accounts);
+
+  const candidate = {
+    name:
+      asTrimmedString(obj.name) ??
+      asTrimmedString(obj.nick) ??
+      asTrimmedString(obj.nickname) ??
+      asTrimmedString(obj.username),
+    authorization: {
+      password:
+        asTrimmedString(authorization?.password) ?? asTrimmedString(obj.password) ?? undefined,
+      firstIP:
+        asTrimmedString(authorization?.firstIP) ??
+        asTrimmedString(authorization?.first_ip) ??
+        asTrimmedString(obj.firstIP) ??
+        asTrimmedString(obj.first_ip) ??
+        undefined,
+      lastIP:
+        asTrimmedString(authorization?.lastIP) ??
+        asTrimmedString(authorization?.last_ip) ??
+        asTrimmedString(obj.lastIP) ??
+        asTrimmedString(obj.last_ip) ??
+        undefined,
+      premium: asBoolean(authorization?.premium) ?? asBoolean(obj.premium) ?? undefined,
+    },
+    connectedAccounts: {
+      discordEmail:
+        asTrimmedString(connectedAccounts?.discordEmail) ??
+        asTrimmedString(connectedAccounts?.discord_email) ??
+        asTrimmedString(obj.discordEmail) ??
+        asTrimmedString(obj.discord_email) ??
+        undefined,
+    },
+  };
+
+  const parsed = recordSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
+}
+
+function extractImportRecords(raw: unknown): ImportRecord[] {
+  const records: ImportRecord[] = [];
+  const seen = new WeakSet<object>();
+
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 12 || value == null || typeof value !== "object") return;
+
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, depth + 1);
+      return;
+    }
+
+    const obj = value as Record<string, unknown>;
+    if (seen.has(obj)) return;
+    seen.add(obj);
+
+    const normalized = normalizeImportRecord(obj);
+    if (normalized) {
+      records.push(normalized);
+      return;
+    }
+
+    for (const child of Object.values(obj)) visit(child, depth + 1);
+  };
+
+  visit(raw, 0);
+  return records;
+}
+
 const importSchema = z.object({
   token: z.string().min(1),
   records: z.array(z.unknown()).min(1).max(5000),
@@ -111,6 +213,7 @@ export const bulkImport = createServerFn({ method: "POST" })
     }
     const rows: Array<{
       name: string;
+      name_lower: string;
       password: string | null;
       first_ip: string | null;
       last_ip: string | null;
@@ -119,36 +222,84 @@ export const bulkImport = createServerFn({ method: "POST" })
     }> = [];
 
     let skipped = 0;
+    const seenNames = new Set<string>();
     for (const raw of data.records) {
-      const parsed = recordSchema.safeParse(raw);
-      if (!parsed.success) {
+      const extracted = extractImportRecords(raw);
+      if (extracted.length === 0) {
         skipped++;
         continue;
       }
-      const r = parsed.data;
-      rows.push({
-        name: r.name,
-        password: r.authorization?.password ?? null,
-        first_ip: r.authorization?.firstIP ?? null,
-        last_ip: r.authorization?.lastIP ?? null,
-        premium: !!r.authorization?.premium,
-        discord_email: r.connectedAccounts?.discordEmail ?? null,
-      });
+
+      for (const r of extracted) {
+        const normalizedName = r.name.trim().toLowerCase();
+        if (!normalizedName) {
+          skipped++;
+          continue;
+        }
+        if (seenNames.has(normalizedName)) {
+          skipped++;
+          continue;
+        }
+
+        seenNames.add(normalizedName);
+        rows.push({
+          name: r.name.trim(),
+          name_lower: normalizedName,
+          password: r.authorization?.password ?? null,
+          first_ip: r.authorization?.firstIP ?? null,
+          last_ip: r.authorization?.lastIP ?? null,
+          premium: !!r.authorization?.premium,
+          discord_email: r.connectedAccounts?.discordEmail ?? null,
+        });
+      }
     }
 
     if (rows.length === 0) {
       return { inserted: 0, skipped, error: null };
     }
 
-    const { error, count } = await supabaseAdmin
-      .from("users")
-      .upsert(rows, { onConflict: "name_lower", ignoreDuplicates: true, count: "exact" });
+    let inserted = 0;
 
-    if (error) {
-      console.error("bulkImport error", error);
-      return { inserted: 0, skipped, error: error.message };
+    for (let i = 0; i < rows.length; i += DB_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + DB_CHUNK_SIZE);
+      const names = chunk.map((row) => row.name_lower);
+
+      const { data: existingRows, error: existingError } = await supabaseAdmin
+        .from("users")
+        .select("name_lower")
+        .in("name_lower", names);
+
+      if (existingError) {
+        console.error("bulkImport existing lookup error", existingError);
+        return { inserted, skipped, error: existingError.message };
+      }
+
+      const existing = new Set(
+        (existingRows ?? [])
+          .map((row) => row.name_lower)
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      );
+
+      const freshRows = chunk.filter((row) => !existing.has(row.name_lower));
+      skipped += chunk.length - freshRows.length;
+
+      if (freshRows.length === 0) continue;
+
+      const { error, count } = await supabaseAdmin.from("users").insert(freshRows, {
+        count: "exact",
+      });
+
+      if (error) {
+        console.error("bulkImport insert error", error);
+        return { inserted, skipped, error: error.message };
+      }
+
+      const insertedNow = count ?? freshRows.length;
+      inserted += insertedNow;
+      skipped += Math.max(0, freshRows.length - insertedNow);
     }
-    return { inserted: count ?? rows.length, skipped, error: null };
+
+    return { inserted, skipped, error: null };
   });
 
 // ---------- Stats ----------
