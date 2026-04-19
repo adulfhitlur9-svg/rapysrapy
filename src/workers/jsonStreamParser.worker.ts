@@ -1,7 +1,12 @@
 /// <reference lib="webworker" />
 import { extractImportRecords, normalizeImportRecord } from "@/lib/import-records";
 
-// Web Worker: strumieniowo parsuje duży JSON i wysyła batche gotowych rekordów.
+// Web Worker: strumieniowo parsuje plik z rekordami JSON.
+// Obsługiwane formaty:
+//   • NDJSON / JSON Lines (każdy obiekt w osobnej linii lub oddzielony białymi znakami)
+//   • strumień top-level obiektów oddzielonych przecinkami
+//   • tablica obiektów [ {...}, {...} ]
+//   • obiekt { "nick1": {...}, "nick2": {...} } (wartości są rekordami)
 
 export type WorkerInMsg = { type: "start"; file: File; batchSize: number };
 export type WorkerOutMsg =
@@ -13,10 +18,6 @@ export type WorkerOutMsg =
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
-function isWhitespace(code: number) {
-  return code === 9 || code === 10 || code === 13 || code === 32;
-}
-
 function collectRecords(value: unknown, nameHint?: string | null) {
   const direct = normalizeImportRecord(value, { nameHint });
   return direct ? [direct] : extractImportRecords(value);
@@ -27,16 +28,6 @@ async function run(file: File, batchSize: number) {
   const decoder = new TextDecoder("utf-8");
 
   let buffer = "";
-  let rootType: "array" | "object" | null = null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  let itemStart = -1;
-  let keyStart = -1;
-  let currentKey: string | null = null;
-  let awaitingValue = false;
-  let capturingKey = false;
-
   let batch: unknown[] = [];
   let totalParsed = 0;
   let totalSkipped = 0;
@@ -87,107 +78,68 @@ async function run(file: File, batchSize: number) {
     }
   };
 
-  const trimBuffer = (cutIndex: number) => {
-    if (cutIndex <= 0) return;
-    buffer = buffer.slice(cutIndex);
-    if (itemStart >= 0) itemStart = Math.max(-1, itemStart - cutIndex);
-    if (keyStart >= 0) keyStart = Math.max(-1, keyStart - cutIndex);
-  };
+  // Prosty skaner: szuka top-level obiektów `{ ... }` w buforze.
+  // Ignoruje ewentualną otwierającą `[` oraz przecinki/białe znaki między obiektami.
+  // Działa dla NDJSON, tablicy obiektów i strumienia obiektów oddzielonych przecinkami.
+  const consumeBuffer = (final = false) => {
+    let i = 0;
+    let lastEnd = 0;
+    const len = buffer.length;
 
-  const consumeBuffer = () => {
-    let safeCut = -1;
-
-    for (let i = 0; i < buffer.length; i++) {
+    while (i < len) {
       const ch = buffer.charCodeAt(i);
+      // Pomiń otwierający nawias tablicy, zamykający ], przecinki i białe znaki
+      if (ch !== 123 /* { */) {
+        i++;
+        continue;
+      }
 
-      if (inString) {
-        if (escape) {
-          escape = false;
-        } else if (ch === 92) {
-          escape = true;
-        } else if (ch === 34) {
-          inString = false;
-          if (capturingKey && keyStart >= 0) {
-            try {
-              currentKey = JSON.parse(buffer.slice(keyStart, i + 1));
-            } catch {
-              currentKey = null;
-            }
-            keyStart = -1;
-            capturingKey = false;
+      // Znaleziono start obiektu — szukaj pasującego `}` z uwzględnieniem stringów
+      let depth = 0;
+      let j = i;
+      let inString = false;
+      let escape = false;
+      let found = -1;
+      for (; j < len; j++) {
+        const c = buffer.charCodeAt(j);
+        if (inString) {
+          if (escape) escape = false;
+          else if (c === 92) escape = true;
+          else if (c === 34) inString = false;
+          continue;
+        }
+        if (c === 34) {
+          inString = true;
+        } else if (c === 123) {
+          depth++;
+        } else if (c === 125) {
+          depth--;
+          if (depth === 0) {
+            found = j;
+            break;
           }
         }
-        continue;
       }
 
-      if (ch === 34) {
-        inString = true;
-        if (rootType === "object" && depth === 1 && currentKey === null && itemStart === -1 && !awaitingValue) {
-          keyStart = i;
-          capturingKey = true;
-        }
-        continue;
+      if (found === -1) {
+        // Niedomknięty obiekt — czekamy na kolejny chunk
+        break;
       }
 
-      if (rootType === null) {
-        if (isWhitespace(ch)) continue;
-        if (ch === 91) {
-          rootType = "array";
-          depth = 1;
-          safeCut = i + 1;
-          continue;
-        }
-        if (ch === 123) {
-          rootType = "object";
-          depth = 1;
-          safeCut = i + 1;
-          continue;
-        }
-        throw new Error("Plik JSON musi zaczynać się od tablicy lub obiektu");
-      }
-
-      if (rootType === "object" && depth === 1 && currentKey !== null && itemStart === -1 && ch === 58) {
-        awaitingValue = true;
-        continue;
-      }
-
-      if (awaitingValue && depth === 1 && !isWhitespace(ch)) {
-        itemStart = i;
-        awaitingValue = false;
-      }
-
-      if (rootType === "array" && depth === 1 && itemStart === -1 && ch !== 44 && ch !== 93 && !isWhitespace(ch)) {
-        itemStart = i;
-      }
-
-      if (ch === 123 || ch === 91) {
-        depth++;
-      } else if (ch === 125 || ch === 93) {
-        depth--;
-      }
-
-      const arrayItemDone =
-        rootType === "array" && itemStart >= 0 && ((ch === 44 && depth === 1) || (ch === 93 && depth === 0));
-      const objectValueDone =
-        rootType === "object" &&
-        itemStart >= 0 &&
-        currentKey !== null &&
-        ((ch === 44 && depth === 1) || (ch === 125 && depth === 0));
-
-      if (arrayItemDone) {
-        parseCandidate(buffer.slice(itemStart, i));
-        itemStart = -1;
-        safeCut = i + 1;
-      } else if (objectValueDone) {
-        parseCandidate(buffer.slice(itemStart, i), currentKey);
-        itemStart = -1;
-        currentKey = null;
-        awaitingValue = false;
-        safeCut = i + 1;
-      }
+      parseCandidate(buffer.slice(i, found + 1));
+      i = found + 1;
+      lastEnd = i;
     }
 
-    trimBuffer(safeCut);
+    if (final) {
+      buffer = "";
+    } else if (lastEnd > 0) {
+      buffer = buffer.slice(lastEnd);
+    } else if (buffer.length > 8 * 1024 * 1024) {
+      // Bezpiecznik: jeżeli bufor urósł > 8 MB bez znalezienia `{`,
+      // utnij początek (prawdopodobnie śmieci lub bardzo duży obiekt).
+      buffer = buffer.slice(buffer.length - 4 * 1024 * 1024);
+    }
   };
 
   try {
@@ -213,7 +165,7 @@ async function run(file: File, batchSize: number) {
     }
 
     buffer += decoder.decode();
-    consumeBuffer();
+    consumeBuffer(true);
     flush();
     postProgress(true);
     ctx.postMessage({ type: "done", parsed: totalParsed, skipped: totalSkipped } satisfies WorkerOutMsg);
