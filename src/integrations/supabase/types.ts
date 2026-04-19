@@ -109,6 +109,38 @@ export type Database = {
           },
         ]
       }
+      password_cracks: {
+        Row: {
+          cracked_at: string
+          cracked_by: string | null
+          hash: string
+          plaintext: string
+          updated_at: string
+        }
+        Insert: {
+          cracked_at?: string
+          cracked_by?: string | null
+          hash: string
+          plaintext: string
+          updated_at?: string
+        }
+        Update: {
+          cracked_at?: string
+          cracked_by?: string | null
+          hash?: string
+          plaintext?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_cracks_cracked_by_fkey"
+            columns: ["cracked_by"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       registration_attempts: {
         Row: {
           created_at: string
