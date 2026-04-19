@@ -1,86 +1,175 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { bulkImport, getStats } from "@/server/users.functions";
+import { bulkImport, getStats, verifyAdminToken } from "@/server/users.functions";
 
 export const Route = createFileRoute("/admin/import")({
   head: () => ({
     meta: [
       { title: "Import archivo.json — userlookup" },
-      { name: "description", content: "Załaduj plik archivo.json do bazy w batchach po 1000." },
+      { name: "description", content: "Jednorazowy import archivo.json do bazy (tylko admin)." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   loader: () => getStats(),
   component: ImportPage,
 });
 
-const BATCH_SIZE = 1000;
+const BATCH_SIZE = 2000;
+const TOKEN_KEY = "admin_import_token";
 
 export function ImportPage() {
   const initial = Route.useLoaderData();
   const [total, setTotal] = useState(initial.total);
+  const [token, setToken] = useState<string>("");
+  const [authed, setAuthed] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0, inserted: 0, skipped: 0 });
+  const [progress, setProgress] = useState({ done: 0, inserted: 0, skipped: 0 });
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const append = (msg: string) => setLog((l) => [...l.slice(-50), msg]);
+  const append = (msg: string) => setLog((l) => [...l.slice(-80), msg]);
+
+  // Auto-login z sessionStorage (token żyje tylko w bieżącej karcie)
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? sessionStorage.getItem(TOKEN_KEY) : null;
+    if (saved) {
+      setToken(saved);
+      verifyAdminToken({ data: { token: saved } })
+        .then((r) => {
+          if (r.ok) setAuthed(true);
+          else sessionStorage.removeItem(TOKEN_KEY);
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
-    if (!busy) {
+    if (!busy && authed) {
       getStats().then((s) => setTotal(s.total)).catch(() => {});
     }
-  }, [busy]);
+  }, [busy, authed]);
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const r = await verifyAdminToken({ data: { token } });
+      if (r.ok) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        setAuthed(true);
+      } else {
+        setAuthError(r.error || "Nieprawidłowy token");
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Błąd weryfikacji");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(TOKEN_KEY);
+    setToken("");
+    setAuthed(false);
+  };
+
+  const sendBatch = async (batch: unknown[]) => {
+    const res = await bulkImport({ data: { token, records: batch } });
+    if (res.error) append(`⚠ ${res.error}`);
+    return res;
+  };
+
+  // Streamowy parser tablicy JSON: czyta plik chunkami, wyciąga top-level obiekty {...}
+  // bez ładowania całości do pamięci. Działa dla `[{...},{...}]` oraz NDJSON.
   const handleFile = async (file: File) => {
     setBusy(true);
     setError(null);
     setLog([]);
-    setProgress({ done: 0, total: 0, inserted: 0, skipped: 0 });
-    append(`Wczytuję ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)…`);
+    setProgress({ done: 0, inserted: 0, skipped: 0 });
+    append(`Wczytuję ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) strumieniowo…`);
+
+    const reader = file.stream().getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    let buffer = "";
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let objStart = -1;
+
+    let batch: unknown[] = [];
+    let totalDone = 0;
+    let totalInserted = 0;
+    let totalSkipped = 0;
+
+    const flush = async () => {
+      if (batch.length === 0) return;
+      const res = await sendBatch(batch);
+      totalInserted += res.inserted;
+      totalSkipped += res.skipped;
+      totalDone += batch.length;
+      setProgress({ done: totalDone, inserted: totalInserted, skipped: totalSkipped });
+      batch = [];
+    };
 
     try {
-      const text = await file.text();
-      let data: unknown;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error("Plik nie jest poprawnym JSON-em");
-      }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-      let records: unknown[];
-      if (Array.isArray(data)) {
-        records = data;
-      } else if (data && typeof data === "object") {
-        // Dopuszczamy { users: [...] } lub mapę nick -> rekord
-        const obj = data as Record<string, unknown>;
-        if (Array.isArray(obj.users)) records = obj.users as unknown[];
-        else if (Array.isArray(obj.data)) records = obj.data as unknown[];
-        else {
-          records = Object.entries(obj).map(([k, v]) =>
-            v && typeof v === "object" && !("name" in (v as object))
-              ? { name: k, ...(v as object) }
-              : v,
-          );
+        for (let i = 0; i < buffer.length; i++) {
+          const ch = buffer[i];
+          if (inString) {
+            if (escape) escape = false;
+            else if (ch === "\\") escape = true;
+            else if (ch === '"') inString = false;
+            continue;
+          }
+          if (ch === '"') {
+            inString = true;
+            continue;
+          }
+          if (ch === "{") {
+            if (depth === 0) objStart = i;
+            depth++;
+          } else if (ch === "}") {
+            depth--;
+            if (depth === 0 && objStart >= 0) {
+              const slice = buffer.slice(objStart, i + 1);
+              try {
+                batch.push(JSON.parse(slice));
+              } catch {
+                totalSkipped++;
+              }
+              objStart = -1;
+              if (batch.length >= BATCH_SIZE) {
+                // utnij przetworzony fragment, kontynuuj parsowanie reszty
+                buffer = buffer.slice(i + 1);
+                i = -1;
+                await flush();
+              }
+            }
+          }
         }
-      } else {
-        throw new Error("Nieobsługiwany format JSON");
+
+        // jeśli jesteśmy w środku obiektu, zachowaj od jego początku, inaczej zrzuć bufor
+        if (depth > 0 && objStart >= 0) {
+          buffer = buffer.slice(objStart);
+          objStart = 0;
+        } else if (depth === 0) {
+          buffer = "";
+        }
       }
 
-      append(`Znaleziono ${records.length.toLocaleString()} rekordów. Wysyłam w batchach po ${BATCH_SIZE}…`);
-      setProgress({ done: 0, total: records.length, inserted: 0, skipped: 0 });
-
-      let inserted = 0;
-      let skipped = 0;
-      for (let i = 0; i < records.length; i += BATCH_SIZE) {
-        const batch = records.slice(i, i + BATCH_SIZE);
-        const res = await bulkImport({ data: { records: batch } });
-        inserted += res.inserted;
-        skipped += res.skipped;
-        if (res.error) append(`⚠ batch ${i}: ${res.error}`);
-        setProgress({ done: i + batch.length, total: records.length, inserted, skipped });
-      }
-      append(`✓ Gotowe. Wstawiono ${inserted.toLocaleString()}, pominięto ${skipped.toLocaleString()}.`);
+      buffer += decoder.decode();
+      await flush();
+      append(`✓ Gotowe. Wstawiono ${totalInserted.toLocaleString()}, pominięto ${totalSkipped.toLocaleString()}.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -91,22 +180,69 @@ export function ImportPage() {
     }
   };
 
-  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+  // ---------- UI: bramka hasła ----------
+  if (!authed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-sm rounded-2xl border border-border bg-card p-8"
+        >
+          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
+            ← powrót
+          </Link>
+          <h1 className="text-2xl font-bold mt-3 mb-1">Admin · import</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            Strefa zastrzeżona. Podaj token administratora.
+          </p>
+          <input
+            type="password"
+            autoFocus
+            autoComplete="current-password"
+            placeholder="Token admina"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-border bg-background font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {authError && (
+            <div className="mt-3 text-sm text-destructive">{authError}</div>
+          )}
+          <button
+            type="submit"
+            disabled={authBusy || !token}
+            className="mt-4 w-full px-4 py-3 rounded-xl bg-primary text-primary-foreground font-semibold disabled:opacity-50 hover:opacity-90 transition"
+          >
+            {authBusy ? "Sprawdzam…" : "Wejdź"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  const pct = progress.done > 0 ? Math.min(99, Math.round((progress.done / Math.max(progress.done, 1)) * 100)) : 0;
 
   return (
     <div className="min-h-screen px-4 py-10">
       <div className="max-w-3xl mx-auto">
-        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-          ← powrót
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+            ← powrót
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="text-xs text-muted-foreground hover:text-destructive"
+          >
+            wyloguj
+          </button>
+        </div>
         <h1 className="text-3xl font-bold mt-4 mb-2">Import archivo.json</h1>
         <p className="text-muted-foreground mb-8">
           Wybierz lokalny plik <code className="font-mono">archivo.json</code>. Parsowanie
-          odbywa się w przeglądarce, dane lecą batchami po {BATCH_SIZE} do bazy.
+          strumieniowe — plik nie jest ładowany w całości do pamięci. Batche po {BATCH_SIZE}.
         </p>
 
         <div className="rounded-2xl border border-border bg-card p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between">
             <span className="text-xs uppercase tracking-widest text-muted-foreground">
               Rekordów w bazie
             </span>
@@ -133,22 +269,22 @@ export function ImportPage() {
           <div className="text-4xl mb-2">⤓</div>
           <div className="font-semibold">Kliknij aby wybrać archivo.json</div>
           <div className="text-xs text-muted-foreground mt-1">
-            JSON: tablica rekordów lub obiekt {"{ users: [...] }"}
+            Obsługa dużych plików (setki MB) — parser strumieniowy
           </div>
         </label>
 
-        {(busy || progress.total > 0) && (
+        {(busy || progress.done > 0) && (
           <div className="rounded-2xl border border-border bg-card p-6 mt-6">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-muted-foreground">
-                {progress.done.toLocaleString()} / {progress.total.toLocaleString()}
+                Przetworzono: {progress.done.toLocaleString()}
               </span>
-              <span className="font-mono">{pct}%</span>
+              <span className="font-mono">{busy ? `${pct}%` : "100%"}</span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-primary transition-all duration-200"
-                style={{ width: `${pct}%` }}
+                className={`h-full bg-primary transition-all duration-200 ${busy ? "animate-pulse" : ""}`}
+                style={{ width: busy ? `${pct}%` : "100%" }}
               />
             </div>
             <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
