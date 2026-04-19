@@ -38,7 +38,7 @@ function HomePage() {
       setResult(res);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Błąd wyszukiwania";
-      setResult({ found: false, user: null, error: msg });
+      setResult({ found: false, user: null, error: msg } as SearchResult);
     } finally {
       setLoading(false);
     }
