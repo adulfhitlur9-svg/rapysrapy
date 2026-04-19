@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { extractImportRecords as sharedExtractImportRecords } from "@/lib/import-records";
 
 // ---------- Search ----------
 const searchSchema = z.object({
@@ -224,7 +225,7 @@ export const bulkImport = createServerFn({ method: "POST" })
     let skipped = 0;
     const seenNames = new Set<string>();
     for (const raw of data.records) {
-      const extracted = extractImportRecords(raw);
+      const extracted = sharedExtractImportRecords(raw);
       if (extracted.length === 0) {
         skipped++;
         continue;
