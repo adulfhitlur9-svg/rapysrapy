@@ -59,7 +59,7 @@ function AdminAccountsPage() {
   const [logs, setLogs] = useState<LoginLog[]>([]);
   const [search, setSearch] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
-  const [tab, setTab] = useState<"accounts" | "logs">("accounts");
+  const [tab, setTab] = useState<"accounts" | "logs" | "hashes">("accounts");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
