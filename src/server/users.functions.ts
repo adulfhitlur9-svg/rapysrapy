@@ -129,7 +129,7 @@ export const bulkImport = createServerFn({ method: "POST" })
 
     const { error, count } = await supabaseAdmin
       .from("users")
-      .upsert(rows, { onConflict: "name", ignoreDuplicates: true, count: "exact" });
+      .upsert(rows, { onConflict: "name_lower", ignoreDuplicates: true, count: "exact" });
 
     if (error) {
       console.error("bulkImport error", error);
