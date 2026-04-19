@@ -342,6 +342,8 @@ function AdminAccountsPage() {
             </table>
           </div>
         )}
+
+        {tab === "hashes" && <HashesTab />}
       </div>
     </div>
   );
