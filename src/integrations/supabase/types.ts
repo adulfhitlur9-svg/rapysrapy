@@ -14,13 +14,49 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      users: {
+        Row: {
+          created_at: string
+          discord_email: string | null
+          first_ip: string | null
+          id: number
+          last_ip: string | null
+          name: string
+          password: string | null
+          premium: boolean | null
+          raw: Json | null
+        }
+        Insert: {
+          created_at?: string
+          discord_email?: string | null
+          first_ip?: string | null
+          id?: number
+          last_ip?: string | null
+          name: string
+          password?: string | null
+          premium?: boolean | null
+          raw?: Json | null
+        }
+        Update: {
+          created_at?: string
+          discord_email?: string | null
+          first_ip?: string | null
+          id?: number
+          last_ip?: string | null
+          name?: string
+          password?: string | null
+          premium?: boolean | null
+          raw?: Json | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
