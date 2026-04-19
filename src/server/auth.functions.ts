@@ -102,8 +102,8 @@ export const register = createServerFn({ method: "POST" })
       .limit(2);
 
     if (dup && dup.length > 0) {
-      const nickTaken = dup.some((r) => r.nick_lower === nickLower);
-      const emailTaken = dup.some((r) => r.email_lower === emailLower);
+      const nickTaken = (dup as Array<{ nick_lower: string; email_lower: string }>).some((r) => r.nick_lower === nickLower);
+      const emailTaken = (dup as Array<{ nick_lower: string; email_lower: string }>).some((r) => r.email_lower === emailLower);
       return {
         ok: false as const,
         error: nickTaken ? "Nick jest zajęty" : emailTaken ? "Email jest już zarejestrowany" : "Konto już istnieje",
