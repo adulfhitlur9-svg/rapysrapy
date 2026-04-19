@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/import")({
   component: ImportPage,
 });
 
-const BATCH_SIZE = 1000;
+const BATCH_SIZE = 500;
 const TOKEN_KEY = "admin_import_token";
 
 export function ImportPage() {
