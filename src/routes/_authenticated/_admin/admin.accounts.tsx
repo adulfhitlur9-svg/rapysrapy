@@ -7,6 +7,7 @@ import {
   adminResetPassword,
   adminDeleteAccount,
 } from "@/server/auth.functions";
+import { HashesTab } from "@/components/admin/HashesTab";
 
 export const Route = createFileRoute("/_authenticated/_admin/admin/accounts")({
   head: () => ({
@@ -58,7 +59,7 @@ function AdminAccountsPage() {
   const [logs, setLogs] = useState<LoginLog[]>([]);
   const [search, setSearch] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
-  const [tab, setTab] = useState<"accounts" | "logs">("accounts");
+  const [tab, setTab] = useState<"accounts" | "logs" | "hashes">("accounts");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,6 +168,16 @@ function AdminAccountsPage() {
             }`}
           >
             Logi logowań ({logs.length})
+          </button>
+          <button
+            onClick={() => setTab("hashes")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
+              tab === "hashes"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Hashe haseł
           </button>
         </div>
 
@@ -331,6 +342,8 @@ function AdminAccountsPage() {
             </table>
           </div>
         )}
+
+        {tab === "hashes" && <HashesTab />}
       </div>
     </div>
   );
