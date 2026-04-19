@@ -1,4 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { me } from "@/server/auth.functions";
+import { AuthProvider, type AuthUser } from "@/lib/auth-context";
 
 import appCss from "../styles.css?url";
 
@@ -49,6 +51,11 @@ export const Route = createRootRoute({
       },
     ],
   }),
+  beforeLoad: async () => {
+    const { user } = await me();
+    return { user: user as AuthUser | null };
+  },
+  loader: ({ context }) => ({ user: context.user }),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -69,5 +76,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  const { user } = Route.useLoaderData();
+  return (
+    <AuthProvider initialUser={user}>
+      <Outlet />
+    </AuthProvider>
+  );
 }
