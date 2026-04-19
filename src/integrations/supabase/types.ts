@@ -22,6 +22,7 @@ export type Database = {
           id: number
           last_ip: string | null
           name: string
+          name_lower: string | null
           password: string | null
           premium: boolean | null
           raw: Json | null
@@ -33,6 +34,7 @@ export type Database = {
           id?: number
           last_ip?: string | null
           name: string
+          name_lower?: string | null
           password?: string | null
           premium?: boolean | null
           raw?: Json | null
@@ -44,6 +46,7 @@ export type Database = {
           id?: number
           last_ip?: string | null
           name?: string
+          name_lower?: string | null
           password?: string | null
           premium?: boolean | null
           raw?: Json | null
