@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { searchUser } from "@/server/users.functions";
+import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
