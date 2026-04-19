@@ -7,6 +7,7 @@ import {
   adminResetPassword,
   adminDeleteAccount,
 } from "@/server/auth.functions";
+import { HashesTab } from "@/components/admin/HashesTab";
 
 export const Route = createFileRoute("/_authenticated/_admin/admin/accounts")({
   head: () => ({
