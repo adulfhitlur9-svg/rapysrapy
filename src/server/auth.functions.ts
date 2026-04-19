@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeader, getRequestIP, setCookie, deleteCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin as _supabaseAdmin } from "@/integrations/supabase/client.server";
+
+// Tabele auth (accounts/sessions/login_logs/registration_attempts) są nowo dodane —
+// typy Supabase regenerują się po deployu. Dopóki to nie nastąpi, używamy cast.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const supabaseAdmin = _supabaseAdmin as any;
 
 const ADMIN_NICK = "incognito"; // hardcoded admin
 const SESSION_COOKIE = "ul_session";
