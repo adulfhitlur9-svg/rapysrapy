@@ -282,7 +282,21 @@ export function ImportPage() {
     );
   }
 
-  const pct = progress.done > 0 ? Math.min(99, Math.round((progress.done / Math.max(progress.done, 1)) * 100)) : 0;
+  const readPct = progress.totalBytes > 0 ? (progress.bytesRead / progress.totalBytes) * 100 : 0;
+  const elapsedSec = progress.elapsedMs / 1000;
+  const mbRead = progress.bytesRead / 1024 / 1024;
+  const speed = elapsedSec > 0 ? mbRead / elapsedSec : 0;
+  const recPerSec = elapsedSec > 0 ? progress.done / elapsedSec : 0;
+  const etaSec =
+    speed > 0 && progress.totalBytes > progress.bytesRead
+      ? (progress.totalBytes - progress.bytesRead) / 1024 / 1024 / speed
+      : 0;
+  const fmtTime = (s: number) => {
+    if (!isFinite(s) || s <= 0) return "—";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
 
   return (
     <div className="min-h-screen px-4 py-10">
@@ -336,34 +350,70 @@ export function ImportPage() {
           </div>
         </label>
 
-        {(busy || progress.done > 0) && (
-          <div className="rounded-2xl border border-border bg-card p-6 mt-6">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-muted-foreground">
-                Przetworzono: {progress.done.toLocaleString()}
-              </span>
-              <span className="font-mono">{busy ? `${pct}%` : "100%"}</span>
+        {(busy || progress.done > 0 || progress.bytesRead > 0) && (
+          <div className="rounded-2xl border border-border bg-card p-6 mt-6 space-y-4">
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted-foreground">Odczyt pliku</span>
+                <span className="font-mono">
+                  {mbRead.toFixed(1)} / {(progress.totalBytes / 1024 / 1024).toFixed(1)} MB ({readPct.toFixed(1)}%)
+                </span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-200"
+                  style={{ width: `${Math.min(100, readPct)}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full bg-primary transition-all duration-200 ${busy ? "animate-pulse" : ""}`}
-                style={{ width: busy ? `${pct}%` : "100%" }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-              <div>
-                <div className="text-xs text-muted-foreground">Wstawione</div>
-                <div className="font-mono font-bold text-success">
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Przetworzono</div>
+                <div className="font-mono font-bold text-lg">{progress.done.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Wstawione</div>
+                <div className="font-mono font-bold text-lg text-success">
                   {progress.inserted.toLocaleString()}
                 </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Pominięte</div>
-                <div className="font-mono font-bold text-muted-foreground">
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pominięte</div>
+                <div className="font-mono font-bold text-lg text-muted-foreground">
                   {progress.skipped.toLocaleString()}
                 </div>
               </div>
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Batch #</div>
+                <div className="font-mono font-bold text-lg">{progress.batchNum}</div>
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <div className="text-muted-foreground">Czas</div>
+                <div className="font-mono font-semibold">{fmtTime(elapsedSec)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Prędkość odczytu</div>
+                <div className="font-mono font-semibold">{speed.toFixed(2)} MB/s</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Rekordy/s</div>
+                <div className="font-mono font-semibold">{Math.round(recPerSec).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">ETA</div>
+                <div className="font-mono font-semibold">{busy ? fmtTime(etaSec) : "—"}</div>
+              </div>
+            </div>
+
+            {progress.lastBatchMs > 0 && (
+              <div className="text-xs text-muted-foreground">
+                Ostatni batch: {(progress.lastBatchMs / 1000).toFixed(2)}s
+              </div>
+            )}
           </div>
         )}
 
