@@ -26,12 +26,24 @@ export function ImportPage() {
   const [authBusy, setAuthBusy] = useState(false);
 
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, inserted: 0, skipped: 0 });
+  const [progress, setProgress] = useState({
+    done: 0,
+    inserted: 0,
+    skipped: 0,
+    bytesRead: 0,
+    totalBytes: 0,
+    batchNum: 0,
+    elapsedMs: 0,
+    lastBatchMs: 0,
+  });
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const append = (msg: string) => setLog((l) => [...l.slice(-80), msg]);
+  const append = (msg: string) => {
+    const ts = new Date().toLocaleTimeString();
+    setLog((l) => [...l.slice(-200), `[${ts}] ${msg}`]);
+  };
 
   // Auto-login z sessionStorage (token żyje tylko w bieżącej karcie)
   useEffect(() => {
@@ -90,12 +102,24 @@ export function ImportPage() {
     setBusy(true);
     setError(null);
     setLog([]);
-    setProgress({ done: 0, inserted: 0, skipped: 0 });
-    append(`Wczytuję ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) strumieniowo…`);
+    const startedAt = performance.now();
+    setProgress({
+      done: 0,
+      inserted: 0,
+      skipped: 0,
+      bytesRead: 0,
+      totalBytes: file.size,
+      batchNum: 0,
+      elapsedMs: 0,
+      lastBatchMs: 0,
+    });
+    append(`📂 ${file.name} — ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+    append(`▶ Start parsowania strumieniowego, batch = ${BATCH_SIZE}`);
 
     const reader = file.stream().getReader();
     const decoder = new TextDecoder("utf-8");
 
+    // Bufor zawiera tylko nieprzeskanowaną resztę. Skanujemy linearnie od indeksu 0.
     let buffer = "";
     let depth = 0;
     let inString = false;
@@ -106,36 +130,63 @@ export function ImportPage() {
     let totalDone = 0;
     let totalInserted = 0;
     let totalSkipped = 0;
+    let totalBytes = 0;
+    let batchNum = 0;
+    let chunkCount = 0;
 
     const flush = async () => {
       if (batch.length === 0) return;
-      const res = await sendBatch(batch);
+      batchNum++;
+      const t0 = performance.now();
+      const toSend = batch;
+      batch = [];
+      append(`⇪ Batch #${batchNum}: wysyłam ${toSend.length.toLocaleString()} rekordów…`);
+      const res = await sendBatch(toSend);
+      const dt = performance.now() - t0;
       totalInserted += res.inserted;
       totalSkipped += res.skipped;
-      totalDone += batch.length;
-      setProgress({ done: totalDone, inserted: totalInserted, skipped: totalSkipped });
-      batch = [];
+      totalDone += toSend.length;
+      const elapsed = performance.now() - startedAt;
+      setProgress({
+        done: totalDone,
+        inserted: totalInserted,
+        skipped: totalSkipped,
+        bytesRead: totalBytes,
+        totalBytes: file.size,
+        batchNum,
+        elapsedMs: elapsed,
+        lastBatchMs: dt,
+      });
+      append(
+        `✓ Batch #${batchNum} OK w ${(dt / 1000).toFixed(1)}s — wstawione +${res.inserted}, pominięte +${res.skipped}`,
+      );
     };
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        chunkCount++;
+        totalBytes += value.byteLength;
         buffer += decoder.decode(value, { stream: true });
 
-        for (let i = 0; i < buffer.length; i++) {
+        if (chunkCount % 20 === 0) {
+          const mb = (totalBytes / 1024 / 1024).toFixed(1);
+          const pct = ((totalBytes / file.size) * 100).toFixed(1);
+          append(`… przeczytano ${mb} MB (${pct}%) · bufor ${(buffer.length / 1024).toFixed(0)} KB`);
+        }
+
+        // Skan liniowy bufora
+        let i = 0;
+        while (i < buffer.length) {
           const ch = buffer[i];
           if (inString) {
             if (escape) escape = false;
             else if (ch === "\\") escape = true;
             else if (ch === '"') inString = false;
-            continue;
-          }
-          if (ch === '"') {
+          } else if (ch === '"') {
             inString = true;
-            continue;
-          }
-          if (ch === "{") {
+          } else if (ch === "{") {
             if (depth === 0) objStart = i;
             depth++;
           } else if (ch === "}") {
@@ -148,28 +199,40 @@ export function ImportPage() {
                 totalSkipped++;
               }
               objStart = -1;
+
               if (batch.length >= BATCH_SIZE) {
-                // utnij przetworzony fragment, kontynuuj parsowanie reszty
+                // Utnij przeskanowany fragment, kontynuuj parsowanie reszty
                 buffer = buffer.slice(i + 1);
-                i = -1;
+                i = -1; // bo zaraz i++
                 await flush();
               }
             }
           }
+          i++;
         }
 
-        // jeśli jesteśmy w środku obiektu, zachowaj od jego początku, inaczej zrzuć bufor
+        // Po pełnym przeskanowaniu obecnego bufora:
+        // - jeśli jesteśmy w środku obiektu → zachowaj od jego początku
+        // - jeśli nie → wyrzuć cały bufor (to były przecinki/białe znaki/nawiasy tablicy)
         if (depth > 0 && objStart >= 0) {
           buffer = buffer.slice(objStart);
           objStart = 0;
-        } else if (depth === 0) {
+        } else {
           buffer = "";
         }
+
+        // Aktualizuj postęp odczytu między batchami (żeby pasek się ruszał)
+        setProgress((p) => ({ ...p, bytesRead: totalBytes, elapsedMs: performance.now() - startedAt }));
       }
 
       buffer += decoder.decode();
+      // Domknij ewentualny ostatni obiekt jeśli nie był jeszcze pushed
+      append(`◼ Koniec strumienia. Wysyłam ostatni batch (${batch.length} rekordów)…`);
       await flush();
-      append(`✓ Gotowe. Wstawiono ${totalInserted.toLocaleString()}, pominięto ${totalSkipped.toLocaleString()}.`);
+      const total = (performance.now() - startedAt) / 1000;
+      append(
+        `🎉 Gotowe w ${total.toFixed(1)}s · wstawione ${totalInserted.toLocaleString()} · pominięte ${totalSkipped.toLocaleString()} · batchy ${batchNum}`,
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -219,7 +282,21 @@ export function ImportPage() {
     );
   }
 
-  const pct = progress.done > 0 ? Math.min(99, Math.round((progress.done / Math.max(progress.done, 1)) * 100)) : 0;
+  const readPct = progress.totalBytes > 0 ? (progress.bytesRead / progress.totalBytes) * 100 : 0;
+  const elapsedSec = progress.elapsedMs / 1000;
+  const mbRead = progress.bytesRead / 1024 / 1024;
+  const speed = elapsedSec > 0 ? mbRead / elapsedSec : 0;
+  const recPerSec = elapsedSec > 0 ? progress.done / elapsedSec : 0;
+  const etaSec =
+    speed > 0 && progress.totalBytes > progress.bytesRead
+      ? (progress.totalBytes - progress.bytesRead) / 1024 / 1024 / speed
+      : 0;
+  const fmtTime = (s: number) => {
+    if (!isFinite(s) || s <= 0) return "—";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
 
   return (
     <div className="min-h-screen px-4 py-10">
@@ -273,34 +350,70 @@ export function ImportPage() {
           </div>
         </label>
 
-        {(busy || progress.done > 0) && (
-          <div className="rounded-2xl border border-border bg-card p-6 mt-6">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-muted-foreground">
-                Przetworzono: {progress.done.toLocaleString()}
-              </span>
-              <span className="font-mono">{busy ? `${pct}%` : "100%"}</span>
+        {(busy || progress.done > 0 || progress.bytesRead > 0) && (
+          <div className="rounded-2xl border border-border bg-card p-6 mt-6 space-y-4">
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted-foreground">Odczyt pliku</span>
+                <span className="font-mono">
+                  {mbRead.toFixed(1)} / {(progress.totalBytes / 1024 / 1024).toFixed(1)} MB ({readPct.toFixed(1)}%)
+                </span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-200"
+                  style={{ width: `${Math.min(100, readPct)}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full bg-primary transition-all duration-200 ${busy ? "animate-pulse" : ""}`}
-                style={{ width: busy ? `${pct}%` : "100%" }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-              <div>
-                <div className="text-xs text-muted-foreground">Wstawione</div>
-                <div className="font-mono font-bold text-success">
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Przetworzono</div>
+                <div className="font-mono font-bold text-lg">{progress.done.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Wstawione</div>
+                <div className="font-mono font-bold text-lg text-success">
                   {progress.inserted.toLocaleString()}
                 </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Pominięte</div>
-                <div className="font-mono font-bold text-muted-foreground">
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pominięte</div>
+                <div className="font-mono font-bold text-lg text-muted-foreground">
                   {progress.skipped.toLocaleString()}
                 </div>
               </div>
+              <div className="rounded-lg bg-muted/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Batch #</div>
+                <div className="font-mono font-bold text-lg">{progress.batchNum}</div>
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <div className="text-muted-foreground">Czas</div>
+                <div className="font-mono font-semibold">{fmtTime(elapsedSec)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Prędkość odczytu</div>
+                <div className="font-mono font-semibold">{speed.toFixed(2)} MB/s</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Rekordy/s</div>
+                <div className="font-mono font-semibold">{Math.round(recPerSec).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">ETA</div>
+                <div className="font-mono font-semibold">{busy ? fmtTime(etaSec) : "—"}</div>
+              </div>
+            </div>
+
+            {progress.lastBatchMs > 0 && (
+              <div className="text-xs text-muted-foreground">
+                Ostatni batch: {(progress.lastBatchMs / 1000).toFixed(2)}s
+              </div>
+            )}
           </div>
         )}
 
