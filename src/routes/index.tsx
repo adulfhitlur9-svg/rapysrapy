@@ -52,12 +52,46 @@ function HomePage() {
         <h1 className="text-xl font-bold tracking-tight">
           <span className="text-primary">::</span> userlookup
         </h1>
-        <Link
-          to="/admin/import"
-          className="text-sm text-muted-foreground hover:text-foreground transition"
-        >
-          Import danych →
-        </Link>
+        <div className="flex items-center gap-4 text-sm">
+          {user ? (
+            <>
+              <span className="text-muted-foreground hidden sm:inline">
+                <span className="text-foreground font-mono font-semibold">{user.nick}</span>
+                {isAdmin && (
+                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary align-middle">
+                    ADMIN
+                  </span>
+                )}
+              </span>
+              {isAdmin && (
+                <Link
+                  to="/admin/accounts"
+                  className="text-muted-foreground hover:text-foreground transition"
+                >
+                  Panel admina
+                </Link>
+              )}
+              <button
+                onClick={() => logout()}
+                className="text-muted-foreground hover:text-destructive transition"
+              >
+                Wyloguj
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="text-muted-foreground hover:text-foreground transition">
+                Logowanie
+              </Link>
+              <Link
+                to="/register"
+                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90"
+              >
+                Rejestracja
+              </Link>
+            </>
+          )}
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center px-4 pt-16 pb-24">
