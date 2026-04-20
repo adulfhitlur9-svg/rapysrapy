@@ -204,11 +204,36 @@ export function HashesTab() {
           {busy ? "…" : "Filtruj"}
         </button>
         <button
-          onClick={copyBatch}
-          className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-          title="Skopiuj wszystkie nieodszyfrowane hashe z tej strony do schowka"
+          onClick={() => copyBatch()}
+          className="px-4 py-2 rounded-lg border border-primary/60 bg-primary/10 text-sm font-semibold hover:bg-primary/20"
+          title={`Skopiuj kolejne ${BATCH_SIZE} nieodszyfrowanych hashy`}
         >
-          📋 Kopiuj nieodszyfrowane (ta strona)
+          📋 Kopiuj batch {currentBatchIdx + 1}/{totalBatches} ({Math.min(BATCH_SIZE, uncrackedOnPage.length - batchOffset)} hashy)
+        </button>
+        <button
+          onClick={prevBatch}
+          disabled={batchOffset === 0}
+          className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-30"
+          title="Poprzedni batch"
+        >
+          ‹
+        </button>
+        <button
+          onClick={nextBatch}
+          className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+          title="Następny batch (auto-przejście na kolejną stronę)"
+        >
+          ›
+        </button>
+        <button
+          onClick={() => {
+            setImportOpen(true);
+            setImportResult(null);
+          }}
+          className="px-4 py-2 rounded-lg border border-success/60 bg-success/10 text-sm font-semibold hover:bg-success/20"
+          title="Wklej odpowiedź z hashes.com"
+        >
+          📥 Wklej wyniki
         </button>
         <a
           href="https://hashes.com/en/decrypt/hash"
@@ -219,6 +244,12 @@ export function HashesTab() {
           ↗ hashes.com
         </a>
       </div>
+
+      {batchInfo && (
+        <div className="mb-3 px-4 py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary text-sm">
+          {batchInfo}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 px-4 py-2 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-sm">
