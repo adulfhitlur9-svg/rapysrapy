@@ -191,15 +191,33 @@ function UserCard({ user }: { user: NonNullable<SearchResult["user"]> }) {
   const nameMcUrl = user.premium
     ? `https://pl.namemc.com/profile/${encodeURIComponent(user.name)}`
     : null;
+  const headUrl = user.premium
+    ? `https://mc-heads.net/avatar/${encodeURIComponent(user.name)}/64`
+    : null;
 
   return (
     <div className="rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="px-6 py-5 border-b border-border flex flex-wrap items-center gap-3 justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">
-            Nickname
+        <div className="flex items-center gap-4">
+          {headUrl && (
+            <img
+              src={headUrl}
+              alt={`Głowka gracza ${user.name}`}
+              width={48}
+              height={48}
+              loading="lazy"
+              className="h-12 w-12 rounded-md border border-border bg-muted shrink-0 [image-rendering:pixelated]"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          )}
+          <div>
+            <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">
+              Nickname
+            </div>
+            <div className="text-2xl font-bold font-mono">{user.name}</div>
           </div>
-          <div className="text-2xl font-bold font-mono">{user.name}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           {user.premium ? (
@@ -244,6 +262,17 @@ function UserCard({ user }: { user: NonNullable<SearchResult["user"]> }) {
                 </div>
               ) : (
                 <span className="text-muted-foreground">—</span>
+              )}
+            </Row>
+            <Row label="Password (hasło)">
+              {user.passwordPlain ? (
+                <code className="font-mono text-sm font-bold bg-success/10 text-success px-2 py-1 rounded border border-success/30 break-all">
+                  {user.passwordPlain}
+                </code>
+              ) : (
+                <span className="text-muted-foreground text-xs italic">
+                  {user.password ? "jeszcze nie odszyfrowane" : "—"}
+                </span>
               )}
             </Row>
             <Row label="Premium">
