@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { adminListHashes, adminSaveCrack } from "@/server/cracks.functions";
+import { adminBulkImportCracks, adminListHashes, adminSaveCrack } from "@/server/cracks.functions";
+
+const BATCH_SIZE = 25;
 
 type HashItem = {
   hash: string;
@@ -19,6 +21,7 @@ type HashStats = {
 export function HashesTab() {
   const listFn = useServerFn(adminListHashes);
   const saveFn = useServerFn(adminSaveCrack);
+  const importFn = useServerFn(adminBulkImportCracks);
 
   const [items, setItems] = useState<HashItem[]>([]);
   const [stats, setStats] = useState<HashStats | null>(null);
@@ -31,6 +34,12 @@ export function HashesTab() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [batchOffset, setBatchOffset] = useState(0);
+  const [batchInfo, setBatchInfo] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   const reload = async (p = page) => {
     setBusy(true);
@@ -73,17 +82,70 @@ export function HashesTab() {
     }
   };
 
-  const copyBatch = async () => {
-    const text = items
-      .filter((x) => x.plaintext === null)
-      .map((x) => x.hash)
-      .join("\n");
-    if (!text) return alert("Brak nieodszyfrowanych hashy na tej stronie");
+  const uncrackedOnPage = useMemo(
+    () => items.filter((x) => x.plaintext === null),
+    [items]
+  );
+  const totalBatches = Math.max(1, Math.ceil(uncrackedOnPage.length / BATCH_SIZE));
+  const currentBatchIdx = Math.min(
+    totalBatches - 1,
+    Math.floor(batchOffset / BATCH_SIZE)
+  );
+
+  const copyBatch = async (offset = batchOffset) => {
+    const slice = uncrackedOnPage.slice(offset, offset + BATCH_SIZE);
+    if (slice.length === 0) return alert("Brak nieodszyfrowanych hashy");
+    const text = slice.map((x) => x.hash).join("\n");
     try {
       await navigator.clipboard.writeText(text);
-      alert(`Skopiowano ${text.split("\n").length} hashy do schowka`);
+      setBatchInfo(
+        `Skopiowano ${slice.length} hashy (batch ${Math.floor(offset / BATCH_SIZE) + 1}/${totalBatches})`
+      );
+      setTimeout(() => setBatchInfo(null), 2500);
     } catch {
       alert("Nie udało się skopiować");
+    }
+  };
+
+  const nextBatch = async () => {
+    const next = batchOffset + BATCH_SIZE;
+    if (next >= uncrackedOnPage.length) {
+      // przejdź do następnej strony jeśli jest
+      if (page < totalPages) {
+        setBatchOffset(0);
+        await reload(page + 1);
+      } else {
+        alert("To był ostatni batch");
+      }
+      return;
+    }
+    setBatchOffset(next);
+    await copyBatch(next);
+  };
+
+  const prevBatch = async () => {
+    const prev = Math.max(0, batchOffset - BATCH_SIZE);
+    setBatchOffset(prev);
+    await copyBatch(prev);
+  };
+
+  const handleImport = async () => {
+    if (!importText.trim()) return;
+    setImportBusy(true);
+    setImportResult(null);
+    try {
+      const r = await importFn({ data: { text: importText } });
+      if (!r.ok) {
+        setImportResult(`❌ ${r.error}`);
+        return;
+      }
+      setImportResult(
+        `✅ Zaimportowano ${r.inserted} haseł. Pominięto: ${r.ignoredNoColon} bez ":" (nieodszyfrowane), ${r.ignoredEmptyPlain} z pustym hasłem.`
+      );
+      setImportText("");
+      await reload();
+    } finally {
+      setImportBusy(false);
     }
   };
 
@@ -142,11 +204,36 @@ export function HashesTab() {
           {busy ? "…" : "Filtruj"}
         </button>
         <button
-          onClick={copyBatch}
-          className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-          title="Skopiuj wszystkie nieodszyfrowane hashe z tej strony do schowka"
+          onClick={() => copyBatch()}
+          className="px-4 py-2 rounded-lg border border-primary/60 bg-primary/10 text-sm font-semibold hover:bg-primary/20"
+          title={`Skopiuj kolejne ${BATCH_SIZE} nieodszyfrowanych hashy`}
         >
-          📋 Kopiuj nieodszyfrowane (ta strona)
+          📋 Kopiuj batch {currentBatchIdx + 1}/{totalBatches} ({Math.min(BATCH_SIZE, uncrackedOnPage.length - batchOffset)} hashy)
+        </button>
+        <button
+          onClick={prevBatch}
+          disabled={batchOffset === 0}
+          className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-30"
+          title="Poprzedni batch"
+        >
+          ‹
+        </button>
+        <button
+          onClick={nextBatch}
+          className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+          title="Następny batch (auto-przejście na kolejną stronę)"
+        >
+          ›
+        </button>
+        <button
+          onClick={() => {
+            setImportOpen(true);
+            setImportResult(null);
+          }}
+          className="px-4 py-2 rounded-lg border border-success/60 bg-success/10 text-sm font-semibold hover:bg-success/20"
+          title="Wklej odpowiedź z hashes.com"
+        >
+          📥 Wklej wyniki
         </button>
         <a
           href="https://hashes.com/en/decrypt/hash"
@@ -157,6 +244,12 @@ export function HashesTab() {
           ↗ hashes.com
         </a>
       </div>
+
+      {batchInfo && (
+        <div className="mb-3 px-4 py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary text-sm">
+          {batchInfo}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 px-4 py-2 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-sm">
@@ -271,6 +364,62 @@ export function HashesTab() {
           </button>
         </div>
       </div>
+
+      {importOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => !importBusy && setImportOpen(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold">Wklej wyniki z hashes.com</h3>
+              <button
+                onClick={() => !importBusy && setImportOpen(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 flex-1 overflow-y-auto">
+              <p className="text-sm text-muted-foreground mb-3">
+                Wklej całą odpowiedź z hashes.com. Format: <code className="px-1 bg-muted rounded">hash:hasło</code> w każdej linii.
+                Linie z samym hashem (bez <code>:</code>) są pomijane (= nieodszyfrowane).
+                Nagłówki <em>Found:</em>, <em>Left:</em>, <em>Hash Identifier</em> są ignorowane.
+              </p>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="q+Mf4aIRPn6L8XQWRRWAKAbTiM9POUzOrOc0Ghgicas=:haslo&#10;oV+K4HZ1v7luCEv7T1L7LCIJEGGq6G4Ot2pV9OUt104=:haslo123&#10;..."
+                className="w-full h-72 px-3 py-2 rounded-lg border border-border bg-background font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {importResult && (
+                <div className="mt-3 px-4 py-2 rounded-lg border border-border bg-muted/40 text-sm">
+                  {importResult}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+              <button
+                onClick={() => setImportOpen(false)}
+                disabled={importBusy}
+                className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
+              >
+                Zamknij
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={importBusy || !importText.trim()}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
+              >
+                {importBusy ? "Importuję…" : "Zaimportuj"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

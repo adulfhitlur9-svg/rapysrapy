@@ -125,6 +125,77 @@ export const adminListHashes = createServerFn({ method: "POST" })
     };
   });
 
+// ---------- bulk import (paste from hashes.com) ----------
+export const adminBulkImportCracks = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        text: z.string().min(1).max(1_000_000),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data }) => {
+    const admin = await requireAdmin();
+    if (!admin) return { ok: false as const, error: "Brak dostępu" };
+
+    const lines = data.text.split(/\r?\n/);
+    const pairs: { hash: string; plaintext: string; cracked_by: string }[] = [];
+    const seen = new Set<string>();
+    let ignoredNoColon = 0;
+    let ignoredEmptyPlain = 0;
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      // pomiń nagłówki "Found:", "Left:", "Hash Identifier" itp.
+      if (/^(found|left|hash identifier)\s*:?\s*$/i.test(line)) continue;
+      const idx = line.indexOf(":");
+      if (idx === -1) {
+        // sam hash bez hasła => nieodszyfrowany, pomijamy
+        ignoredNoColon++;
+        continue;
+      }
+      const hash = line.slice(0, idx).trim();
+      const plaintext = line.slice(idx + 1);
+      if (!hash) continue;
+      if (plaintext === "") {
+        ignoredEmptyPlain++;
+        continue;
+      }
+      if (seen.has(hash)) continue;
+      seen.add(hash);
+      pairs.push({ hash, plaintext, cracked_by: admin.id });
+    }
+
+    if (pairs.length === 0) {
+      return {
+        ok: true as const,
+        inserted: 0,
+        ignoredNoColon,
+        ignoredEmptyPlain,
+      };
+    }
+
+    // upsert w batchach
+    const BATCH = 500;
+    let inserted = 0;
+    for (let i = 0; i < pairs.length; i += BATCH) {
+      const chunk = pairs.slice(i, i + BATCH);
+      const { error } = await supabaseAdmin
+        .from("password_cracks")
+        .upsert(chunk, { onConflict: "hash" });
+      if (error) return { ok: false as const, error: error.message };
+      inserted += chunk.length;
+    }
+
+    return {
+      ok: true as const,
+      inserted,
+      ignoredNoColon,
+      ignoredEmptyPlain,
+    };
+  });
+
 // ---------- save / update crack ----------
 export const adminSaveCrack = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
