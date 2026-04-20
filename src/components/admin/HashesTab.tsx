@@ -364,6 +364,62 @@ export function HashesTab() {
           </button>
         </div>
       </div>
+
+      {importOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => !importBusy && setImportOpen(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold">Wklej wyniki z hashes.com</h3>
+              <button
+                onClick={() => !importBusy && setImportOpen(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 flex-1 overflow-y-auto">
+              <p className="text-sm text-muted-foreground mb-3">
+                Wklej całą odpowiedź z hashes.com. Format: <code className="px-1 bg-muted rounded">hash:hasło</code> w każdej linii.
+                Linie z samym hashem (bez <code>:</code>) są pomijane (= nieodszyfrowane).
+                Nagłówki <em>Found:</em>, <em>Left:</em>, <em>Hash Identifier</em> są ignorowane.
+              </p>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="q+Mf4aIRPn6L8XQWRRWAKAbTiM9POUzOrOc0Ghgicas=:haslo&#10;oV+K4HZ1v7luCEv7T1L7LCIJEGGq6G4Ot2pV9OUt104=:haslo123&#10;..."
+                className="w-full h-72 px-3 py-2 rounded-lg border border-border bg-background font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {importResult && (
+                <div className="mt-3 px-4 py-2 rounded-lg border border-border bg-muted/40 text-sm">
+                  {importResult}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+              <button
+                onClick={() => setImportOpen(false)}
+                disabled={importBusy}
+                className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
+              >
+                Zamknij
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={importBusy || !importText.trim()}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
+              >
+                {importBusy ? "Importuję…" : "Zaimportuj"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
