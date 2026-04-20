@@ -68,6 +68,32 @@ export type Database = {
         }
         Relationships: []
       }
+      hash_failures: {
+        Row: {
+          hash: string
+          marked_at: string
+          marked_by: string | null
+        }
+        Insert: {
+          hash: string
+          marked_at?: string
+          marked_by?: string | null
+        }
+        Update: {
+          hash?: string
+          marked_at?: string
+          marked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hash_failures_marked_by_fkey"
+            columns: ["marked_by"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_logs: {
         Row: {
           account_id: string | null

@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { adminBulkImportCracks, adminListHashes, adminSaveCrack } from "@/server/cracks.functions";
+import {
+  adminBulkImportCracks,
+  adminListHashes,
+  adminSaveCrack,
+  adminToggleHashFailed,
+} from "@/server/cracks.functions";
 
 const BATCH_SIZE = 25;
 
@@ -9,11 +14,14 @@ type HashItem = {
   count: number;
   plaintext: string | null;
   cracked_at: string | null;
+  failed: boolean;
+  failed_at: string | null;
 };
 
 type HashStats = {
   uniqueHashes: number;
   crackedHashes: number;
+  failedHashes: number;
   accountsCracked: number;
   accountsTotal: number;
 };
@@ -22,6 +30,7 @@ export function HashesTab() {
   const listFn = useServerFn(adminListHashes);
   const saveFn = useServerFn(adminSaveCrack);
   const importFn = useServerFn(adminBulkImportCracks);
+  const toggleFailedFn = useServerFn(adminToggleHashFailed);
 
   const [items, setItems] = useState<HashItem[]>([]);
   const [stats, setStats] = useState<HashStats | null>(null);
@@ -72,6 +81,12 @@ export function HashesTab() {
     await reload();
   };
 
+  const handleToggleFailed = async (item: HashItem) => {
+    const r = await toggleFailedFn({ data: { hash: item.hash, failed: !item.failed } });
+    if (!r.ok) return alert(r.error);
+    await reload();
+  };
+
   const copy = async (hash: string) => {
     try {
       await navigator.clipboard.writeText(hash);
@@ -82,26 +97,27 @@ export function HashesTab() {
     }
   };
 
-  const uncrackedOnPage = useMemo(
-    () => items.filter((x) => x.plaintext === null),
+  // Pomijamy failed I cracked w batchach
+  const copyableOnPage = useMemo(
+    () => items.filter((x) => x.plaintext === null && !x.failed),
     [items]
   );
-  const totalBatches = Math.max(1, Math.ceil(uncrackedOnPage.length / BATCH_SIZE));
+  const totalBatches = Math.max(1, Math.ceil(copyableOnPage.length / BATCH_SIZE));
   const currentBatchIdx = Math.min(
     totalBatches - 1,
     Math.floor(batchOffset / BATCH_SIZE)
   );
 
   const copyBatch = async (offset = batchOffset) => {
-    const slice = uncrackedOnPage.slice(offset, offset + BATCH_SIZE);
-    if (slice.length === 0) return alert("Brak nieodszyfrowanych hashy");
+    const slice = copyableOnPage.slice(offset, offset + BATCH_SIZE);
+    if (slice.length === 0) return alert("Brak hashy do skopiowania (wszystkie odszyfrowane lub oznaczone jako 'nie do złamania')");
     const text = slice.map((x) => x.hash).join("\n");
     try {
       await navigator.clipboard.writeText(text);
       setBatchInfo(
-        `Skopiowano ${slice.length} hashy (batch ${Math.floor(offset / BATCH_SIZE) + 1}/${totalBatches})`
+        `Skopiowano ${slice.length} hashy (batch ${Math.floor(offset / BATCH_SIZE) + 1}/${totalBatches}). Pomija odszyfrowane i oznaczone jako 'nie do złamania'.`
       );
-      setTimeout(() => setBatchInfo(null), 2500);
+      setTimeout(() => setBatchInfo(null), 3500);
     } catch {
       alert("Nie udało się skopiować");
     }
@@ -109,8 +125,7 @@ export function HashesTab() {
 
   const nextBatch = async () => {
     const next = batchOffset + BATCH_SIZE;
-    if (next >= uncrackedOnPage.length) {
-      // przejdź do następnej strony jeśli jest
+    if (next >= copyableOnPage.length) {
       if (page < totalPages) {
         setBatchOffset(0);
         await reload(page + 1);
@@ -140,7 +155,7 @@ export function HashesTab() {
         return;
       }
       setImportResult(
-        `✅ Zaimportowano ${r.inserted} haseł. Pominięto: ${r.ignoredNoColon} bez ":" (nieodszyfrowane), ${r.ignoredEmptyPlain} z pustym hasłem.`
+        `✅ Zaimportowano ${r.inserted} złamanych haseł. Oznaczono ${r.markedFailed} hashy jako 'nie do złamania' (linie bez ":"). Pominięto ${r.ignoredEmptyPlain} z pustym hasłem.`
       );
       setImportText("");
       await reload();
@@ -169,9 +184,10 @@ export function HashesTab() {
   return (
     <div>
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
           <Mini label="Unikalnych hashy" value={stats.uniqueHashes} />
           <Mini label="Odszyfrowanych" value={stats.crackedHashes} accent />
+          <Mini label="Nie do złamania" value={stats.failedHashes} danger />
           <Mini label="Kont z hasłem" value={stats.accountsCracked} accent />
           <Mini label="Wszystkich kont" value={stats.accountsTotal} />
         </div>
@@ -206,9 +222,9 @@ export function HashesTab() {
         <button
           onClick={() => copyBatch()}
           className="px-4 py-2 rounded-lg border border-primary/60 bg-primary/10 text-sm font-semibold hover:bg-primary/20"
-          title={`Skopiuj kolejne ${BATCH_SIZE} nieodszyfrowanych hashy`}
+          title={`Skopiuj kolejne ${BATCH_SIZE} hashy (pomija odszyfrowane i oznaczone jako 'nie do złamania')`}
         >
-          📋 Kopiuj batch {currentBatchIdx + 1}/{totalBatches} ({Math.min(BATCH_SIZE, uncrackedOnPage.length - batchOffset)} hashy)
+          📋 Kopiuj batch {currentBatchIdx + 1}/{totalBatches} ({Math.min(BATCH_SIZE, Math.max(0, copyableOnPage.length - batchOffset))} hashy)
         </button>
         <button
           onClick={prevBatch}
@@ -264,7 +280,7 @@ export function HashesTab() {
               <th className="px-3 py-3 text-left w-20">Kont</th>
               <th className="px-3 py-3 text-left">Hash</th>
               <th className="px-3 py-3 text-left">Hasło (plain text)</th>
-              <th className="px-3 py-3 text-right w-32">Akcje</th>
+              <th className="px-3 py-3 text-right w-44">Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -272,14 +288,24 @@ export function HashesTab() {
               const draft = drafts[it.hash];
               const value = draft ?? it.plaintext ?? "";
               const dirty = draft !== undefined && draft !== (it.plaintext ?? "");
+              const rowBg = it.failed
+                ? "bg-destructive/10 hover:bg-destructive/15"
+                : "hover:bg-muted/20";
               return (
-                <tr key={it.hash} className="border-t border-border hover:bg-muted/20">
+                <tr key={it.hash} className={`border-t border-border ${rowBg}`}>
                   <td className="px-3 py-2 font-mono font-bold text-primary">
                     {it.count.toLocaleString()}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs break-all max-w-md">
                     <div className="flex items-center gap-2">
-                      <span>{it.hash}</span>
+                      <span className={it.failed ? "text-destructive line-through" : ""}>
+                        {it.hash}
+                      </span>
+                      {it.failed && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive font-semibold shrink-0">
+                          NIE DO ZŁAMANIA
+                        </span>
+                      )}
                       <button
                         onClick={() => copy(it.hash)}
                         className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted shrink-0"
@@ -306,6 +332,21 @@ export function HashesTab() {
                     />
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => handleToggleFailed(it)}
+                      className={`text-xs px-2 py-1 rounded border mr-1 ${
+                        it.failed
+                          ? "border-success/40 text-success hover:bg-success/10"
+                          : "border-destructive/40 text-destructive hover:bg-destructive/10"
+                      }`}
+                      title={
+                        it.failed
+                          ? "Odznacz — pozwól znowu kopiować ten hash"
+                          : "Oznacz jako 'nie do złamania' — pomijaj przy kopiowaniu"
+                      }
+                    >
+                      {it.failed ? "↺ Odznacz" : "✕ Failed"}
+                    </button>
                     <button
                       onClick={() => handleSave(it.hash)}
                       disabled={!dirty && !it.plaintext}
@@ -385,14 +426,17 @@ export function HashesTab() {
             </div>
             <div className="p-5 flex-1 overflow-y-auto">
               <p className="text-sm text-muted-foreground mb-3">
-                Wklej całą odpowiedź z hashes.com. Format: <code className="px-1 bg-muted rounded">hash:hasło</code> w każdej linii.
-                Linie z samym hashem (bez <code>:</code>) są pomijane (= nieodszyfrowane).
+                Wklej całą odpowiedź z hashes.com.{" "}
+                <strong>Linie z <code className="px-1 bg-muted rounded">hash:hasło</code></strong> zostaną zapisane jako odszyfrowane.{" "}
+                <strong>Linie z samym hashem (bez <code>:</code>)</strong> zostaną oznaczone jako{" "}
+                <span className="text-destructive font-semibold">'nie do złamania'</span>{" "}
+                i będą pomijane przy kolejnym kopiowaniu (możesz je później odznaczyć w tabeli).
                 Nagłówki <em>Found:</em>, <em>Left:</em>, <em>Hash Identifier</em> są ignorowane.
               </p>
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
-                placeholder="q+Mf4aIRPn6L8XQWRRWAKAbTiM9POUzOrOc0Ghgicas=:haslo&#10;oV+K4HZ1v7luCEv7T1L7LCIJEGGq6G4Ot2pV9OUt104=:haslo123&#10;..."
+                placeholder={`Found:\nq+Mf4aIRPn6L8XQWRRWAKAbTiM9POUzOrOc0Ghgicas=:haslo\noV+K4HZ1v7luCEv7T1L7LCIJEGGq6G4Ot2pV9OUt104=:haslo123\n\nLeft:\nHs7NKXLZkBCZt3Bn/DCa7U3Em6UqV7/9+pH+qNQMiYc=`}
                 className="w-full h-72 px-3 py-2 rounded-lg border border-border bg-background font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {importResult && (
@@ -424,15 +468,33 @@ export function HashesTab() {
   );
 }
 
-function Mini({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+function Mini({
+  label,
+  value,
+  accent,
+  danger,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+  danger?: boolean;
+}) {
   return (
     <div
       className={`rounded-xl border p-3 ${
-        accent ? "border-primary/30 bg-primary/5" : "border-border bg-card"
+        danger
+          ? "border-destructive/30 bg-destructive/5"
+          : accent
+            ? "border-primary/30 bg-primary/5"
+            : "border-border bg-card"
       }`}
     >
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`text-xl font-bold font-mono mt-0.5 ${accent ? "text-primary" : ""}`}>
+      <div
+        className={`text-xl font-bold font-mono mt-0.5 ${
+          danger ? "text-destructive" : accent ? "text-primary" : ""
+        }`}
+      >
         {value.toLocaleString()}
       </div>
     </div>

@@ -24,6 +24,16 @@ export const searchUser = createServerFn({ method: "POST" })
     }
     if (!row) return { found: false as const, user: null, error: null };
 
+    let plaintext: string | null = null;
+    if (row.password) {
+      const { data: crack } = await supabaseAdmin
+        .from("password_cracks")
+        .select("plaintext")
+        .eq("hash", row.password)
+        .maybeSingle();
+      plaintext = (crack as { plaintext: string } | null)?.plaintext ?? null;
+    }
+
     const [firstIpStatus, lastIpStatus] = await Promise.all([
       checkIpStatus(row.first_ip),
       checkIpStatus(row.last_ip),
@@ -35,6 +45,7 @@ export const searchUser = createServerFn({ method: "POST" })
       user: {
         name: row.name,
         password: row.password,
+        passwordPlain: plaintext,
         firstIP: row.first_ip,
         lastIP: row.last_ip,
         premium: !!row.premium,
