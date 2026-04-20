@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { adminListHashes, adminSaveCrack } from "@/server/cracks.functions";
+import { adminBulkImportCracks, adminListHashes, adminSaveCrack } from "@/server/cracks.functions";
+
+const BATCH_SIZE = 25;
 
 type HashItem = {
   hash: string;
