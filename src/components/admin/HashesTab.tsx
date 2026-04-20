@@ -21,6 +21,7 @@ type HashStats = {
 export function HashesTab() {
   const listFn = useServerFn(adminListHashes);
   const saveFn = useServerFn(adminSaveCrack);
+  const importFn = useServerFn(adminBulkImportCracks);
 
   const [items, setItems] = useState<HashItem[]>([]);
   const [stats, setStats] = useState<HashStats | null>(null);
@@ -33,6 +34,12 @@ export function HashesTab() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [batchOffset, setBatchOffset] = useState(0);
+  const [batchInfo, setBatchInfo] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   const reload = async (p = page) => {
     setBusy(true);
