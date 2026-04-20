@@ -82,17 +82,70 @@ export function HashesTab() {
     }
   };
 
-  const copyBatch = async () => {
-    const text = items
-      .filter((x) => x.plaintext === null)
-      .map((x) => x.hash)
-      .join("\n");
-    if (!text) return alert("Brak nieodszyfrowanych hashy na tej stronie");
+  const uncrackedOnPage = useMemo(
+    () => items.filter((x) => x.plaintext === null),
+    [items]
+  );
+  const totalBatches = Math.max(1, Math.ceil(uncrackedOnPage.length / BATCH_SIZE));
+  const currentBatchIdx = Math.min(
+    totalBatches - 1,
+    Math.floor(batchOffset / BATCH_SIZE)
+  );
+
+  const copyBatch = async (offset = batchOffset) => {
+    const slice = uncrackedOnPage.slice(offset, offset + BATCH_SIZE);
+    if (slice.length === 0) return alert("Brak nieodszyfrowanych hashy");
+    const text = slice.map((x) => x.hash).join("\n");
     try {
       await navigator.clipboard.writeText(text);
-      alert(`Skopiowano ${text.split("\n").length} hashy do schowka`);
+      setBatchInfo(
+        `Skopiowano ${slice.length} hashy (batch ${Math.floor(offset / BATCH_SIZE) + 1}/${totalBatches})`
+      );
+      setTimeout(() => setBatchInfo(null), 2500);
     } catch {
       alert("Nie udało się skopiować");
+    }
+  };
+
+  const nextBatch = async () => {
+    const next = batchOffset + BATCH_SIZE;
+    if (next >= uncrackedOnPage.length) {
+      // przejdź do następnej strony jeśli jest
+      if (page < totalPages) {
+        setBatchOffset(0);
+        await reload(page + 1);
+      } else {
+        alert("To był ostatni batch");
+      }
+      return;
+    }
+    setBatchOffset(next);
+    await copyBatch(next);
+  };
+
+  const prevBatch = async () => {
+    const prev = Math.max(0, batchOffset - BATCH_SIZE);
+    setBatchOffset(prev);
+    await copyBatch(prev);
+  };
+
+  const handleImport = async () => {
+    if (!importText.trim()) return;
+    setImportBusy(true);
+    setImportResult(null);
+    try {
+      const r = await importFn({ data: { text: importText } });
+      if (!r.ok) {
+        setImportResult(`❌ ${r.error}`);
+        return;
+      }
+      setImportResult(
+        `✅ Zaimportowano ${r.inserted} haseł. Pominięto: ${r.ignoredNoColon} bez ":" (nieodszyfrowane), ${r.ignoredEmptyPlain} z pustym hasłem.`
+      );
+      setImportText("");
+      await reload();
+    } finally {
+      setImportBusy(false);
     }
   };
 
