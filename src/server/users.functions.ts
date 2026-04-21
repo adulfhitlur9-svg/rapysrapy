@@ -6,23 +6,47 @@ import { extractImportRecords as sharedExtractImportRecords } from "@/lib/import
 // ---------- Search ----------
 const searchSchema = z.object({
   name: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_.\-]+$/, "Niedozwolone znaki"),
+  fuzzy: z.boolean().optional().default(false),
 });
+
+type RelatedAccount = {
+  name: string;
+  premium: boolean;
+  matchType: "first_ip" | "last_ip" | "discord_email";
+  matchValue: string;
+};
 
 export const searchUser = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => searchSchema.parse(input))
   .handler(async ({ data }) => {
-    const { data: row, error } = await supabaseAdmin
+    const exactQuery = supabaseAdmin
       .from("users")
       .select("name, password, first_ip, last_ip, premium, discord_email")
       .ilike("name", data.name)
       .limit(1)
       .maybeSingle();
 
+    const { data: row, error } = await exactQuery;
+
     if (error) {
       console.error("searchUser error", error);
-      return { found: false as const, user: null, error: "Błąd zapytania do bazy" };
+      return { found: false as const, user: null, suggestions: [], error: "Błąd zapytania do bazy" };
     }
-    if (!row) return { found: false as const, user: null, error: null };
+
+    // Brak dokładnego — fuzzy fallback
+    if (!row) {
+      let suggestions: Array<{ name: string; premium: boolean }> = [];
+      if (data.fuzzy) {
+        const term = data.name.toLowerCase();
+        const { data: fuzzyRows } = await supabaseAdmin
+          .from("users")
+          .select("name, premium")
+          .ilike("name_lower", `%${term}%`)
+          .limit(20);
+        suggestions = (fuzzyRows ?? []).map((r) => ({ name: r.name, premium: !!r.premium }));
+      }
+      return { found: false as const, user: null, suggestions, error: null };
+    }
 
     let plaintext: string | null = null;
     if (row.password) {
@@ -34,14 +58,16 @@ export const searchUser = createServerFn({ method: "POST" })
       plaintext = (crack as { plaintext: string } | null)?.plaintext ?? null;
     }
 
-    const [firstIpStatus, lastIpStatus] = await Promise.all([
+    const [firstIpStatus, lastIpStatus, related] = await Promise.all([
       checkIpStatus(row.first_ip),
       checkIpStatus(row.last_ip),
+      findRelatedAccountsInternal(row.name, row.first_ip, row.last_ip, row.discord_email),
     ]);
 
     return {
       found: true as const,
       error: null,
+      suggestions: [],
       user: {
         name: row.name,
         password: row.password,
@@ -52,9 +78,65 @@ export const searchUser = createServerFn({ method: "POST" })
         discordEmail: row.discord_email,
         firstIpStatus,
         lastIpStatus,
+        related,
       },
     };
   });
+
+async function findRelatedAccountsInternal(
+  selfName: string,
+  firstIp: string | null,
+  lastIp: string | null,
+  discordEmail: string | null,
+): Promise<RelatedAccount[]> {
+  const results: RelatedAccount[] = [];
+  const seen = new Set<string>([selfName.toLowerCase()]);
+  const LIMIT = 25;
+
+  const push = (
+    rows: Array<{ name: string; premium: boolean | null }> | null,
+    matchType: RelatedAccount["matchType"],
+    matchValue: string,
+  ) => {
+    for (const r of rows ?? []) {
+      const key = r.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({ name: r.name, premium: !!r.premium, matchType, matchValue });
+      if (results.length >= LIMIT) return;
+    }
+  };
+
+  if (firstIp) {
+    const { data: rows } = await supabaseAdmin
+      .from("users")
+      .select("name, premium")
+      .or(`first_ip.eq.${firstIp},last_ip.eq.${firstIp}`)
+      .neq("name_lower", selfName.toLowerCase())
+      .limit(LIMIT);
+    push(rows, "first_ip", firstIp);
+  }
+  if (results.length < LIMIT && lastIp && lastIp !== firstIp) {
+    const { data: rows } = await supabaseAdmin
+      .from("users")
+      .select("name, premium")
+      .or(`first_ip.eq.${lastIp},last_ip.eq.${lastIp}`)
+      .neq("name_lower", selfName.toLowerCase())
+      .limit(LIMIT);
+    push(rows, "last_ip", lastIp);
+  }
+  if (results.length < LIMIT && discordEmail) {
+    const { data: rows } = await supabaseAdmin
+      .from("users")
+      .select("name, premium")
+      .eq("discord_email", discordEmail)
+      .neq("name_lower", selfName.toLowerCase())
+      .limit(LIMIT);
+    push(rows, "discord_email", discordEmail);
+  }
+
+  return results;
+}
 
 async function checkIpStatus(ip: string | null): Promise<"reachable" | "not reachable" | "unknown"> {
   if (!ip) return "unknown";
