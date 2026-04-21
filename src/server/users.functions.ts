@@ -414,8 +414,20 @@ export const bulkImport = createServerFn({ method: "POST" })
 
 // ---------- Stats ----------
 export const getStats = createServerFn({ method: "GET" }).handler(async () => {
-  const { count } = await supabaseAdmin
-    .from("users")
-    .select("*", { count: "exact", head: true });
-  return { total: count ?? 0 };
+  const [{ count: total }, { count: premium }, { count: cracked }, { count: withDiscord }] =
+    await Promise.all([
+      supabaseAdmin.from("users").select("*", { count: "exact", head: true }),
+      supabaseAdmin.from("users").select("*", { count: "exact", head: true }).eq("premium", true),
+      supabaseAdmin.from("password_cracks").select("*", { count: "exact", head: true }),
+      supabaseAdmin
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .not("discord_email", "is", null),
+    ]);
+  return {
+    total: total ?? 0,
+    premium: premium ?? 0,
+    cracked: cracked ?? 0,
+    withDiscord: withDiscord ?? 0,
+  };
 });
