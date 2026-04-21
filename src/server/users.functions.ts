@@ -33,17 +33,20 @@ export const searchUser = createServerFn({ method: "POST" })
       return { found: false as const, user: null, suggestions: [], error: "Błąd zapytania do bazy" };
     }
 
-    // Brak dokładnego — fuzzy fallback
+    // Brak dokładnego — fuzzy fallback (RPC: substring + digit variants + typo + phonetic)
     if (!row) {
-      let suggestions: Array<{ name: string; premium: boolean }> = [];
+      let suggestions: Array<{ name: string; premium: boolean; matchKind: string }> = [];
       if (data.fuzzy) {
-        const term = data.name.toLowerCase();
-        const { data: fuzzyRows } = await supabaseAdmin
-          .from("users")
-          .select("name, premium")
-          .ilike("name_lower", `%${term}%`)
-          .limit(20);
-        suggestions = (fuzzyRows ?? []).map((r) => ({ name: r.name, premium: !!r.premium }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: fuzzyRows } = await (supabaseAdmin as any).rpc("fuzzy_search_users", {
+          q: data.name,
+          max_results: 20,
+        });
+        suggestions = ((fuzzyRows ?? []) as Array<{ name: string; premium: boolean; match_kind: string }>).map((r) => ({
+          name: r.name,
+          premium: !!r.premium,
+          matchKind: r.match_kind,
+        }));
       }
       return { found: false as const, user: null, suggestions, error: null };
     }
@@ -414,20 +417,16 @@ export const bulkImport = createServerFn({ method: "POST" })
 
 // ---------- Stats ----------
 export const getStats = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ count: total }, { count: premium }, { count: cracked }, { count: withDiscord }] =
-    await Promise.all([
-      supabaseAdmin.from("users").select("*", { count: "exact", head: true }),
-      supabaseAdmin.from("users").select("*", { count: "exact", head: true }).eq("premium", true),
-      supabaseAdmin.from("password_cracks").select("*", { count: "exact", head: true }),
-      supabaseAdmin
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .not("discord_email", "is", null),
-    ]);
+  const [{ count: total }, { count: premium }, decodedRes] = await Promise.all([
+    supabaseAdmin.from("users").select("*", { count: "exact", head: true }),
+    supabaseAdmin.from("users").select("*", { count: "exact", head: true }).eq("premium", true),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabaseAdmin as any).rpc("count_decoded_accounts"),
+  ]);
+  const decoded = typeof decodedRes?.data === "number" ? decodedRes.data : Number(decodedRes?.data ?? 0);
   return {
     total: total ?? 0,
     premium: premium ?? 0,
-    cracked: cracked ?? 0,
-    withDiscord: withDiscord ?? 0,
+    decoded: decoded || 0,
   };
 });
