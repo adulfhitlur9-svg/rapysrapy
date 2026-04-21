@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: "Wyszukiwarka graczy z bazy 1M+ rekordów." },
     ],
   }),
-  loader: () => getStats().catch(() => ({ total: 0, premium: 0, cracked: 0, withDiscord: 0 })),
+  loader: () => getStats().catch(() => ({ total: 0, premium: 0, decoded: 0 })),
   component: HomePage,
 });
 
@@ -101,7 +101,7 @@ function HomePage() {
   };
 
   const premiumPct = stats.total ? ((stats.premium / stats.total) * 100).toFixed(1) : "0";
-  const crackedPct = stats.total ? ((stats.cracked / stats.total) * 100).toFixed(1) : "0";
+  const decodedPct = stats.total ? ((stats.decoded / stats.total) * 100).toFixed(1) : "0";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -213,19 +213,35 @@ function HomePage() {
                       />
                       <div>
                         <div className="font-semibold">
-                          Fuzzy search{" "}
-                          <span className="text-xs text-muted-foreground font-normal">
-                            (tolerancja literówek)
-                          </span>
+                          Tolerancja literówek i podobne nicki
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          Jeśli dokładny nick nie zostanie znaleziony, automatycznie wyszuka
-                          podobne — np. <code className="text-foreground">incognto</code> →{" "}
-                          <code className="text-foreground">incognito</code>, lub{" "}
-                          <code className="text-foreground">koks123</code> →{" "}
-                          <code className="text-foreground">koks1234</code>. Pokażemy do 20
-                          sugestii z fragmentem pasującym do zapytania.
+                          Jeśli dokładny nick nie zostanie znaleziony, automatycznie pokażemy podobne (do 20 sugestii). Wyszukujemy w czterech trybach jednocześnie:
                         </p>
+                        <ul className="text-xs text-muted-foreground mt-2 space-y-1.5 leading-relaxed">
+                          <li>
+                            <span className="text-foreground font-semibold">• Zawiera fragment</span> — np.{" "}
+                            <code className="text-foreground">oskar</code> →{" "}
+                            <code className="text-foreground">OskarWas013</code>,{" "}
+                            <code className="text-foreground">OskarPL</code>
+                          </li>
+                          <li>
+                            <span className="text-foreground font-semibold">• Inne cyfry na końcu</span> — np.{" "}
+                            <code className="text-foreground">OskarWas013</code> →{" "}
+                            <code className="text-foreground">OskarWas10</code>,{" "}
+                            <code className="text-foreground">OskarWas011</code>
+                          </li>
+                          <li>
+                            <span className="text-foreground font-semibold">• Literówki (max 2 błędy)</span> — np.{" "}
+                            <code className="text-foreground">incognto</code> →{" "}
+                            <code className="text-foreground">incognito</code>
+                          </li>
+                          <li>
+                            <span className="text-foreground font-semibold">• Brzmi podobnie (fonetycznie)</span> — np.{" "}
+                            <code className="text-foreground">Kris</code> ≈{" "}
+                            <code className="text-foreground">Chris</code>
+                          </li>
+                        </ul>
                       </div>
                     </label>
                     <div className="text-xs text-muted-foreground border-t border-border pt-3">
@@ -263,7 +279,7 @@ function HomePage() {
 
           {/* Dashboard stats */}
           {!result && !loading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto mb-10">
               <StatCard label="Konta w bazie" value={stats.total.toLocaleString("pl-PL")} />
               <StatCard
                 label="Premium"
@@ -272,14 +288,10 @@ function HomePage() {
                 accent="success"
               />
               <StatCard
-                label="Cracked hashe"
-                value={stats.cracked.toLocaleString("pl-PL")}
-                sub={`${crackedPct}% bazy`}
+                label="Odhashowane konta"
+                value={stats.decoded.toLocaleString("pl-PL")}
+                sub={`${decodedPct}% bazy`}
                 accent="primary"
-              />
-              <StatCard
-                label="Z Discordem"
-                value={stats.withDiscord.toLocaleString("pl-PL")}
               />
             </div>
           )}
