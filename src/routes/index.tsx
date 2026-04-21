@@ -423,11 +423,26 @@ function NotFoundCard({
 }: {
   submittedName: string | null;
   error: string | null;
-  suggestions: Array<{ name: string; premium: boolean }>;
+  suggestions: Array<{ name: string; premium: boolean; matchKind?: string }>;
   fuzzyEnabled: boolean;
   onPick: (name: string) => void;
   onEnableFuzzy: () => void;
 }) {
+  const kindLabel = (k?: string) => {
+    switch (k) {
+      case "substring":
+        return { text: "zawiera", className: "bg-primary/15 text-primary border-primary/30" };
+      case "digit_variant":
+        return { text: "inne cyfry", className: "bg-accent/30 text-accent-foreground border-accent" };
+      case "typo":
+        return { text: "literówka", className: "bg-warning/15 text-warning border-warning/30" };
+      case "phonetic":
+        return { text: "brzmi tak samo", className: "bg-muted text-muted-foreground border-border" };
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-border bg-card/50 p-10 text-center">
       <div className="text-5xl mb-3">∅</div>
@@ -446,7 +461,7 @@ function NotFoundCard({
           onClick={onEnableFuzzy}
           className="px-4 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-semibold hover:opacity-90 transition"
         >
-          🔍 Spróbuj fuzzy search
+          🔍 Szukaj podobnych nicków (tolerancja literówek)
         </button>
       )}
 
@@ -456,16 +471,27 @@ function NotFoundCard({
             Podobne nicki ({suggestions.length})
           </div>
           <div className="flex flex-wrap gap-2 justify-center">
-            {suggestions.map((s) => (
-              <button
-                key={s.name}
-                onClick={() => onPick(s.name)}
-                className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 border border-border font-mono text-sm transition flex items-center gap-2"
-              >
-                {s.premium && <span className="text-success text-xs">★</span>}
-                {s.name}
-              </button>
-            ))}
+            {suggestions.map((s) => {
+              const kind = kindLabel(s.matchKind);
+              return (
+                <button
+                  key={s.name}
+                  onClick={() => onPick(s.name)}
+                  className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 border border-border font-mono text-sm transition flex items-center gap-2"
+                  title={kind?.text ? `Dopasowane: ${kind.text}` : undefined}
+                >
+                  {s.premium && <span className="text-success text-xs">★</span>}
+                  {s.name}
+                  {kind && (
+                    <span
+                      className={`text-[9px] uppercase tracking-wider font-sans font-semibold px-1.5 py-0.5 rounded border ${kind.className}`}
+                    >
+                      {kind.text}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
