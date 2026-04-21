@@ -28,6 +28,7 @@ export type Database = {
           nick: string
           nick_lower: string
           password: string
+          rank: Database["public"]["Enums"]["account_rank"]
           registration_ip: string | null
           role: Database["public"]["Enums"]["account_role"]
           updated_at: string
@@ -45,6 +46,7 @@ export type Database = {
           nick: string
           nick_lower: string
           password: string
+          rank?: Database["public"]["Enums"]["account_rank"]
           registration_ip?: string | null
           role?: Database["public"]["Enums"]["account_role"]
           updated_at?: string
@@ -62,6 +64,7 @@ export type Database = {
           nick?: string
           nick_lower?: string
           password?: string
+          rank?: Database["public"]["Enums"]["account_rank"]
           registration_ip?: string | null
           role?: Database["public"]["Enums"]["account_role"]
           updated_at?: string
@@ -267,9 +270,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      count_decoded_accounts: { Args: never; Returns: number }
+      daitch_mokotoff: { Args: { "": string }; Returns: string[] }
+      dmetaphone: { Args: { "": string }; Returns: string }
+      dmetaphone_alt: { Args: { "": string }; Returns: string }
+      fuzzy_search_users: {
+        Args: { max_results?: number; q: string }
+        Returns: {
+          match_kind: string
+          name: string
+          premium: boolean
+          score: number
+        }[]
+      }
+      soundex: { Args: { "": string }; Returns: string }
+      text_soundex: { Args: { "": string }; Returns: string }
     }
     Enums: {
+      account_rank: "new" | "moderator" | "administrator" | "ceo"
       account_role: "user" | "admin"
     }
     CompositeTypes: {
@@ -398,6 +416,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_rank: ["new", "moderator", "administrator", "ceo"],
       account_role: ["user", "admin"],
     },
   },
