@@ -48,7 +48,7 @@ function saveHistory(entries: HistoryEntry[]) {
 }
 
 function HomePage() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, canAccessAdminPanel, logout } = useAuth();
   const stats = Route.useLoaderData();
   const [query, setQuery] = useState("");
   const [fuzzy, setFuzzy] = useState(false);
@@ -114,13 +114,13 @@ function HomePage() {
             <>
               <span className="text-muted-foreground hidden sm:inline">
                 <span className="text-foreground font-mono font-semibold">{user.nick}</span>
-                {isAdmin && (
+                {canAccessAdminPanel && (
                   <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary align-middle">
                     ADMIN
                   </span>
                 )}
               </span>
-              {isAdmin && (
+              {canAccessAdminPanel && (
                 <Link
                   to="/admin/accounts"
                   className="text-muted-foreground hover:text-foreground transition"
