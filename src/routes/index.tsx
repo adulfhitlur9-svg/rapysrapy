@@ -444,6 +444,33 @@ function StatCard({
   );
 }
 
+function FeatureCard({
+  title,
+  description,
+  accent,
+}: {
+  title: string;
+  description: string;
+  accent: "success" | "primary" | "warning" | "accent";
+}) {
+  const accentMap = {
+    success: "border-success/25 bg-success/10 text-success",
+    primary: "border-primary/25 bg-primary/10 text-primary",
+    warning: "border-warning/25 bg-warning/10 text-warning",
+    accent: "border-accent/25 bg-accent/10 text-accent",
+  } as const;
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60 p-5 shadow-[var(--shadow-card)]">
+      <div className={`mb-4 inline-flex rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] ${accentMap[accent]}`}>
+        moduł
+      </div>
+      <h3 className="mb-2 text-lg font-semibold tracking-tight">{title}</h3>
+      <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
 function NotFoundCard({
   submittedName,
   error,
