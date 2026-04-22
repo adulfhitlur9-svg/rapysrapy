@@ -110,7 +110,8 @@ export const register = createServerFn({ method: "POST" })
       };
     }
 
-    const role: "admin" | "user" = nickLower === ADMIN_NICK.toLowerCase() ? "admin" : "user";
+    const role: "admin" | "user" = "user";
+    const rank = nickLower === ADMIN_NICK.toLowerCase() ? "ceo" : "new";
 
     const { data: created, error } = await supabaseAdmin
       .from("accounts")
@@ -122,8 +123,9 @@ export const register = createServerFn({ method: "POST" })
         last_login_ip: ip || null,
         last_login_at: new Date().toISOString(),
         role,
+        rank,
       })
-      .select("id, nick, email, role")
+      .select("id, nick, email, role, rank")
       .single();
 
     if (error || !created) {
@@ -159,7 +161,7 @@ export const register = createServerFn({ method: "POST" })
 
     return {
       ok: true as const,
-      user: { id: created.id, nick: created.nick, email: created.email, role: created.role },
+      user: { id: created.id, nick: created.nick, email: created.email, role: created.role, rank: created.rank },
     };
   });
 
@@ -173,7 +175,7 @@ export const login = createServerFn({ method: "POST" })
 
     const { data: acc } = await supabaseAdmin
       .from("accounts")
-      .select("id, nick, email, password, role, banned, ban_reason")
+      .select("id, nick, email, password, role, rank, banned, ban_reason")
       .eq("nick_lower", nickLower)
       .maybeSingle();
 
@@ -245,7 +247,7 @@ export const login = createServerFn({ method: "POST" })
 
     return {
       ok: true as const,
-      user: { id: acc.id, nick: acc.nick, email: acc.email, role: acc.role },
+      user: { id: acc.id, nick: acc.nick, email: acc.email, role: acc.role, rank: acc.rank },
     };
   });
 
@@ -275,15 +277,14 @@ export const me = createServerFn({ method: "GET" }).handler(async () => {
   }
   const { data: acc } = await supabaseAdmin
     .from("accounts")
-    .select("id, nick, email, role, banned")
+    .select("id, nick, email, role, rank, banned")
     .eq("id", sess.account_id)
     .maybeSingle();
   if (!acc || acc.banned) return { user: null };
-  return { user: { id: acc.id, nick: acc.nick, email: acc.email, role: acc.role } };
+  return { user: { id: acc.id, nick: acc.nick, email: acc.email, role: acc.role, rank: acc.rank } };
 });
 
-// ---------- admin guard ----------
-async function requireAdmin(): Promise<{ id: string; nick: string } | null> {
+async function requireAdmin(): Promise<{ id: string; nick: string; rank: string } | null> {
   const token = getCookie(SESSION_COOKIE);
   if (!token) return null;
   const { data: sess } = await supabaseAdmin
@@ -294,11 +295,13 @@ async function requireAdmin(): Promise<{ id: string; nick: string } | null> {
   if (!sess || new Date(sess.expires_at).getTime() < Date.now()) return null;
   const { data: acc } = await supabaseAdmin
     .from("accounts")
-    .select("id, nick, role, banned")
+    .select("id, nick, rank, banned")
     .eq("id", sess.account_id)
     .maybeSingle();
-  if (!acc || acc.banned || acc.role !== "admin") return null;
-  return { id: acc.id, nick: acc.nick };
+  if (!acc || acc.banned) return null;
+  const { hasRequiredRank } = await import("@/lib/ranks");
+  if (!hasRequiredRank(acc.rank, "administrator")) return null;
+  return { id: acc.id, nick: acc.nick, rank: acc.rank };
 }
 
 // ---------- admin: list accounts ----------
@@ -318,7 +321,7 @@ export const adminListAccounts = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("accounts")
       .select(
-        "id, nick, email, password, registration_ip, last_login_ip, last_login_at, role, banned, ban_reason, banned_at, created_at",
+        "id, nick, email, password, registration_ip, last_login_ip, last_login_at, role, rank, banned, ban_reason, banned_at, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(data.limit);

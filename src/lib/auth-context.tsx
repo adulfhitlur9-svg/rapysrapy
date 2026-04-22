@@ -1,17 +1,21 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { login as loginFn, logout as logoutFn, register as registerFn } from "@/server/auth.functions";
+import { hasRequiredRank, type AccountRank } from "@/lib/ranks";
 
 export type AuthUser = {
   id: string;
   nick: string;
   email: string;
   role: "user" | "admin";
+  rank: AccountRank;
 };
 
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  isAdmin: boolean;
+  canAccessHashes: boolean;
+  canAccessAdminPanel: boolean;
+  isCeo: boolean;
   login: (nick: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   register: (nick: string, email: string, password: string, website: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -51,7 +55,9 @@ export function AuthProvider({ initialUser, children }: { initialUser: AuthUser 
       value={{
         user,
         isAuthenticated: !!user,
-        isAdmin: user?.role === "admin",
+        canAccessHashes: hasRequiredRank(user?.rank, "moderator"),
+        canAccessAdminPanel: hasRequiredRank(user?.rank, "administrator"),
+        isCeo: user?.rank === "ceo",
         login,
         register,
         logout,
