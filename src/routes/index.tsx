@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { searchUser, getStats } from "@/server/users.functions";
 import { useAuth } from "@/lib/auth-context";
+import { RANK_LABELS } from "@/lib/ranks";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -102,72 +103,97 @@ function HomePage() {
 
   const premiumPct = stats.total ? ((stats.premium / stats.total) * 100).toFixed(1) : "0";
   const decodedPct = stats.total ? ((stats.decoded / stats.total) * 100).toFixed(1) : "0";
+  const recentHistory = history.slice(0, 5);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="px-6 py-5 flex items-center justify-between border-b border-border/50 backdrop-blur-sm">
-        <h1 className="text-xl font-bold tracking-tight">
-          <span className="text-primary">::</span> userlookup
-        </h1>
-        <div className="flex items-center gap-4 text-sm">
+    <div className="min-h-screen flex flex-col bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_92%,black)_0%,var(--background)_100%)]">
+      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card shadow-[var(--shadow-card)]">
+              <span className="text-sm font-black text-primary">⌕</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight sm:text-xl">userlookup</h1>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">lookup terminal</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-sm">
           {user ? (
             <>
-              <span className="text-muted-foreground hidden sm:inline">
-                <span className="text-foreground font-mono font-semibold">{user.nick}</span>
+              <span className="hidden items-center gap-2 text-muted-foreground sm:flex">
+                <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">terminal</span>
+                <span className="font-mono font-semibold text-foreground">{user.nick}</span>
+                <span className="rounded-md border border-border bg-card px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                  {RANK_LABELS[user.rank]}
+                </span>
                 {canAccessAdminPanel && (
-                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary align-middle">
-                    ADMIN
+                  <span className="rounded-md border border-accent/30 bg-accent/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
+                    panel
                   </span>
                 )}
               </span>
               {canAccessAdminPanel && (
                 <Link
                   to="/admin/accounts"
-                  className="text-muted-foreground hover:text-foreground transition"
+                  className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
                 >
                   Panel admina
                 </Link>
               )}
               <button
                 onClick={() => logout()}
-                className="text-muted-foreground hover:text-destructive transition"
+                className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:text-destructive"
               >
                 Wyloguj
               </button>
             </>
           ) : (
             <>
-              <Link to="/login" className="text-muted-foreground hover:text-foreground transition">
+              <Link
+                to="/login"
+                className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:text-foreground"
+              >
                 Logowanie
               </Link>
               <Link
                 to="/register"
-                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90"
+                className="rounded-md border border-primary/40 bg-primary px-3 py-2 font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:opacity-90"
               >
                 Rejestracja
               </Link>
             </>
           )}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 pt-10 pb-20">
-        <div className="max-w-7xl mx-auto">
-          {/* Hero + search */}
-          <div className="text-center mb-10">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-4">
-              Database lookup
-            </p>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-3">
-              Znajdź <span className="text-primary">gracza</span>.
-            </h2>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-              Wpisz nick. Sprawdź premium, IP, Discord, powiązane konta — w mniej niż sekundę.
-            </p>
+      <main className="flex-1 px-4 pb-20 pt-8 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <section className="mb-8 overflow-hidden rounded-2xl border border-border bg-card/65 shadow-[var(--shadow-card)]">
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="border-b border-border/70 p-5 sm:p-8 lg:border-b-0 lg:border-r">
+                <div className="mb-6 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                  <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-primary">core lookup</span>
+                  <span>nick / ip / discord / powiązania</span>
+                </div>
+                <h2 className="mb-3 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+                  Znajdź gracza<span className="text-primary">.</span>
+                </h2>
+                <p className="mb-8 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                  Wpisz nick, sprawdź premium, IP, Discord i powiązane konta w jednym terminalowym widoku.
+                </p>
 
-            {user ? (
-              <div className="max-w-2xl mx-auto">
-                <form onSubmit={handleSubmit} className="flex gap-2">
+                {user ? (
+                  <div className="max-w-3xl">
+                    <form
+                      onSubmit={handleSubmit}
+                      className="rounded-xl border border-border bg-background/70 p-3 shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_4%,transparent)]"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <div className="relative flex-1">
+                          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">⌕</span>
                   <input
                     type="text"
                     value={query}
@@ -176,133 +202,150 @@ function HomePage() {
                     maxLength={64}
                     autoComplete="off"
                     spellCheck={false}
-                    className="flex-1 h-14 px-5 rounded-xl bg-input border border-border focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none text-lg font-mono transition"
+                    className="h-14 w-full rounded-lg border border-border bg-input pl-11 pr-4 text-base font-mono outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 sm:text-lg"
                   />
-                  <button
-                    type="submit"
-                    disabled={loading || !query.trim()}
-                    className="h-14 px-8 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-[var(--shadow-glow)]"
-                  >
-                    {loading ? <Spinner /> : "Szukaj"}
-                  </button>
-                </form>
-
-                <div className="mt-3 flex justify-between items-center text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvanced((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground transition flex items-center gap-1"
-                  >
-                    <span>{showAdvanced ? "▼" : "▶"}</span> Zaawansowane opcje wyszukiwania
-                  </button>
-                  {history.length > 0 && (
-                    <span className="text-muted-foreground">
-                      Historia: {history.length}/{HISTORY_MAX}
-                    </span>
-                  )}
-                </div>
-
-                {showAdvanced && (
-                  <div className="mt-3 rounded-xl border border-border bg-card/50 p-5 text-left text-sm space-y-4">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={fuzzy}
-                        onChange={(e) => setFuzzy(e.target.checked)}
-                        className="mt-1 h-4 w-4 accent-primary"
-                      />
-                      <div>
-                        <div className="font-semibold">
-                          Tolerancja literówek i podobne nicki
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          Jeśli dokładny nick nie zostanie znaleziony, automatycznie pokażemy podobne (do 20 sugestii). Wyszukujemy w czterech trybach jednocześnie:
-                        </p>
-                        <ul className="text-xs text-muted-foreground mt-2 space-y-1.5 leading-relaxed">
-                          <li>
-                            <span className="text-foreground font-semibold">• Zawiera fragment</span> — np.{" "}
-                            <code className="text-foreground">oskar</code> →{" "}
-                            <code className="text-foreground">OskarWas013</code>,{" "}
-                            <code className="text-foreground">OskarPL</code>
-                          </li>
-                          <li>
-                            <span className="text-foreground font-semibold">• Inne cyfry na końcu</span> — np.{" "}
-                            <code className="text-foreground">OskarWas013</code> →{" "}
-                            <code className="text-foreground">OskarWas10</code>,{" "}
-                            <code className="text-foreground">OskarWas011</code>
-                          </li>
-                          <li>
-                            <span className="text-foreground font-semibold">• Literówki (max 2 błędy)</span> — np.{" "}
-                            <code className="text-foreground">incognto</code> →{" "}
-                            <code className="text-foreground">incognito</code>
-                          </li>
-                          <li>
-                            <span className="text-foreground font-semibold">• Brzmi podobnie (fonetycznie)</span> — np.{" "}
-                            <code className="text-foreground">Kris</code> ≈{" "}
-                            <code className="text-foreground">Chris</code>
-                          </li>
-                        </ul>
+                        <button
+                          type="submit"
+                          disabled={loading || !query.trim()}
+                          className="h-14 rounded-lg border border-primary/30 bg-primary px-8 font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {loading ? <Spinner /> : "Szukaj"}
+                        </button>
                       </div>
-                    </label>
-                    <div className="text-xs text-muted-foreground border-t border-border pt-3">
-                      💡 <strong className="text-foreground">Tip:</strong> nicki są
-                      case-insensitive. Dozwolone znaki:{" "}
-                      <code className="text-foreground">A-Z 0-9 _ . -</code>
+
+                      <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setShowAdvanced((v) => !v)}
+                          className="flex items-center gap-2 text-muted-foreground transition hover:text-foreground"
+                        >
+                          <span className="text-primary">{showAdvanced ? "▼" : "▶"}</span>
+                          Zaawansowane opcje wyszukiwania
+                        </button>
+                        {history.length > 0 && <span className="text-muted-foreground">Historia: {history.length}/20</span>}
+                      </div>
+                    </form>
+
+                    {showAdvanced && (
+                      <div className="mt-3 rounded-xl border border-border bg-background/70 p-5 text-left text-sm shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_4%,transparent)]">
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={fuzzy}
+                            onChange={(e) => setFuzzy(e.target.checked)}
+                            className="mt-1 h-4 w-4 accent-primary"
+                          />
+                          <div>
+                            <div className="font-semibold">Tolerancja literówek i podobne nicki</div>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                              Jeśli dokładny nick nie zostanie znaleziony, automatycznie pokażemy podobne (do 20 sugestii). Wyszukujemy w czterech trybach jednocześnie:
+                            </p>
+                            <ul className="mt-3 space-y-2 text-xs leading-relaxed text-muted-foreground">
+                              <li>
+                                <span className="font-semibold text-foreground">• Zawiera fragment</span> — np. <code className="text-foreground">oskar</code> → <code className="text-foreground">OskarWas013</code>, <code className="text-foreground">OskarPL</code>
+                              </li>
+                              <li>
+                                <span className="font-semibold text-foreground">• Inne cyfry na końcu</span> — np. <code className="text-foreground">OskarWas013</code> → <code className="text-foreground">OskarWas10</code>, <code className="text-foreground">OskarWas011</code>
+                              </li>
+                              <li>
+                                <span className="font-semibold text-foreground">• Literówki (max 2 błędy)</span> — np. <code className="text-foreground">incognto</code> → <code className="text-foreground">incognito</code>
+                              </li>
+                              <li>
+                                <span className="font-semibold text-foreground">• Brzmi podobnie (fonetycznie)</span> — np. <code className="text-foreground">Kris</code> ≈ <code className="text-foreground">Chris</code>
+                              </li>
+                            </ul>
+                            <div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                              💡 <strong className="text-foreground">Tip:</strong> nicki są case-insensitive. Dozwolone znaki: <code className="text-foreground">A-Z 0-9 _ . -</code>
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="max-w-md rounded-xl border border-border bg-background/70 p-7 text-center">
+                    <div className="mb-3 text-3xl">🔒</div>
+                    <h3 className="mb-2 text-lg font-semibold">Dostęp tylko dla zalogowanych</h3>
+                    <p className="mb-5 text-sm text-muted-foreground">Załóż darmowe konto żeby przeszukiwać bazę.</p>
+                    <div className="flex justify-center gap-2">
+                      <Link
+                        to="/register"
+                        className="rounded-lg border border-primary/40 bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:opacity-90"
+                      >
+                        Załóż konto
+                      </Link>
+                      <Link
+                        to="/login"
+                        className="rounded-lg border border-border px-5 py-2.5 font-semibold hover:bg-muted"
+                      >
+                        Zaloguj się
+                      </Link>
                     </div>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="max-w-md mx-auto rounded-2xl border border-border bg-card/50 p-8 text-center">
-                <div className="text-3xl mb-3">🔒</div>
-                <h3 className="text-lg font-semibold mb-2">Dostęp tylko dla zalogowanych</h3>
-                <p className="text-sm text-muted-foreground mb-5">
-                  Załóż darmowe konto żeby przeszukiwać bazę.
-                </p>
-                <div className="flex gap-2 justify-center">
-                  <Link
-                    to="/register"
-                    className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90"
-                  >
-                    Załóż konto
-                  </Link>
-                  <Link
-                    to="/login"
-                    className="px-5 py-2.5 rounded-xl border border-border hover:bg-muted font-semibold"
-                  >
-                    Zaloguj się
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
 
-          {/* Dashboard stats */}
-          {!result && !loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto mb-10">
-              <StatCard label="Konta w bazie" value={stats.total.toLocaleString("pl-PL")} />
-              <StatCard
-                label="Premium"
-                value={`${premiumPct}%`}
-                sub={`${stats.premium.toLocaleString("pl-PL")} kont`}
-                accent="success"
-              />
-              <StatCard
-                label="Odhashowane konta"
-                value={stats.decoded.toLocaleString("pl-PL")}
-                sub={`${decodedPct}% bazy`}
-                accent="primary"
-              />
+              <aside className="flex flex-col justify-between bg-background/55 p-5 sm:p-6">
+                <div>
+                  <div className="mb-5 text-[10px] uppercase tracking-[0.28em] text-muted-foreground">status publiczny</div>
+                  <div className="grid gap-3">
+                    <StatCard label="Konta w bazie" value={stats.total.toLocaleString("pl-PL")} />
+                    <StatCard label="Premium" value={`${premiumPct}%`} sub={`${stats.premium.toLocaleString("pl-PL")} kont`} accent="success" />
+                    <StatCard label="Odhashowane konta" value={stats.decoded.toLocaleString("pl-PL")} sub={`${decodedPct}% bazy`} accent="primary" />
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-xl border border-border bg-card/70 p-4">
+                  <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                    <span>Ostatnie wyszukiwania</span>
+                    <span>{recentHistory.length}</span>
+                  </div>
+                  {recentHistory.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Brak zapisanych wyszukiwań.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {recentHistory.map((entry) => (
+                        <li key={entry.name + entry.at}>
+                          <button
+                            onClick={() => {
+                              setQuery(entry.name);
+                              runSearch(entry.name, fuzzy);
+                            }}
+                            className="flex w-full items-center justify-between rounded-lg border border-border bg-background/80 px-3 py-2 text-left transition hover:border-primary/30 hover:bg-muted/40"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-mono text-sm text-foreground">{entry.name}</div>
+                              <div className="text-[11px] text-muted-foreground">{timeAgo(entry.at)} temu</div>
+                            </div>
+                            <span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${entry.found ? "border border-success/30 bg-success/10 text-success" : "border border-warning/30 bg-warning/10 text-warning"}`}>
+                              {entry.found ? "znaleziono" : "brak"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </aside>
             </div>
+          </section>
+
+          {!result && !loading && (
+            <section className="mb-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <FeatureCard title="Status premium" description="Sprawdź, czy gracz posiada aktywne premium." accent="success" />
+              <FeatureCard title="Powiązane konta" description="Zobacz inne konta z tego samego IP lub Discorda." accent="primary" />
+              <FeatureCard title="Historia nicków" description="Łatwiej wyłapiesz zmiany nicku i alternatywne wpisy." accent="warning" />
+              <FeatureCard title="Tolerancja literówek" description="Sugestie podobnych nicków nawet przy błędach i cyfrach na końcu." accent="accent" />
+            </section>
           )}
 
-          {/* Layout: results + history sidebar */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
             <div className="min-w-0">
               {loading && (
-                <div className="text-center py-20 text-muted-foreground flex flex-col items-center gap-4">
+                <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card/50 py-20 text-center text-muted-foreground">
                   <Spinner large />
-                  <span className="text-sm">Wyszukiwanie i ping IP…</span>
+                  <span className="text-sm">Wyszukiwanie i analiza powiązań…</span>
                 </div>
               )}
 
@@ -325,34 +368,26 @@ function HomePage() {
 
               {!result && !loading && user && (
                 <div className="rounded-2xl border border-dashed border-border bg-card/30 p-10 text-center text-muted-foreground">
-                  <div className="text-4xl mb-3">🔎</div>
-                  <p className="text-sm">Wyniki pojawią się tutaj.</p>
+                  <div className="mb-3 text-4xl">⌕</div>
+                  <p className="text-sm">Wyniki wyszukiwania pojawią się tutaj po wpisaniu nicku.</p>
                 </div>
               )}
             </div>
 
-            {/* History sidebar */}
             {user && (
-              <aside className="lg:sticky lg:top-6 self-start rounded-2xl border border-border bg-card/50 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
-                    Historia
-                  </h3>
+              <aside className="self-start rounded-2xl border border-border bg-card/50 p-4 lg:sticky lg:top-24">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Historia</h3>
                   {history.length > 0 && (
-                    <button
-                      onClick={clearHistory}
-                      className="text-xs text-muted-foreground hover:text-destructive transition"
-                    >
+                    <button onClick={clearHistory} className="text-xs text-muted-foreground transition hover:text-destructive">
                       Wyczyść
                     </button>
                   )}
                 </div>
                 {history.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">
-                    Brak wyszukiwań.
-                  </p>
+                  <p className="py-4 text-center text-xs text-muted-foreground">Brak wyszukiwań.</p>
                 ) : (
-                  <ul className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
+                  <ul className="max-h-[500px] space-y-1 overflow-y-auto pr-1">
                     {history.map((h) => (
                       <li key={h.name + h.at}>
                         <button
@@ -360,17 +395,13 @@ function HomePage() {
                             setQuery(h.name);
                             runSearch(h.name, fuzzy);
                           }}
-                          className="w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition group"
+                          className="group flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition hover:bg-muted"
                         >
-                          <span className="font-mono text-sm truncate flex items-center gap-2">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${h.found ? "bg-success" : "bg-muted-foreground"}`}
-                            />
+                          <span className="flex items-center gap-2 truncate font-mono text-sm">
+                            <span className={`h-1.5 w-1.5 rounded-full ${h.found ? "bg-success" : "bg-warning"}`} />
                             {h.name}
                           </span>
-                          <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100">
-                            {timeAgo(h.at)}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground opacity-0 transition group-hover:opacity-100">{timeAgo(h.at)}</span>
                         </button>
                       </li>
                     ))}
@@ -382,7 +413,7 @@ function HomePage() {
         </div>
       </main>
 
-      <footer className="px-6 py-4 text-center text-xs text-muted-foreground border-t border-border/50">
+      <footer className="border-t border-border/60 px-6 py-4 text-center text-xs text-muted-foreground">
         userlookup · search by nickname · {stats.total.toLocaleString("pl-PL")}+ records
       </footer>
     </div>
@@ -409,6 +440,33 @@ function StatCard({
       </div>
       <div className={`text-2xl font-bold font-mono ${accentClass}`}>{value}</div>
       {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function FeatureCard({
+  title,
+  description,
+  accent,
+}: {
+  title: string;
+  description: string;
+  accent: "success" | "primary" | "warning" | "accent";
+}) {
+  const accentMap = {
+    success: "border-success/25 bg-success/10 text-success",
+    primary: "border-primary/25 bg-primary/10 text-primary",
+    warning: "border-warning/25 bg-warning/10 text-warning",
+    accent: "border-accent/25 bg-accent/10 text-accent",
+  } as const;
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60 p-5 shadow-[var(--shadow-card)]">
+      <div className={`mb-4 inline-flex rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] ${accentMap[accent]}`}>
+        moduł
+      </div>
+      <h3 className="mb-2 text-lg font-semibold tracking-tight">{title}</h3>
+      <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
     </div>
   );
 }
