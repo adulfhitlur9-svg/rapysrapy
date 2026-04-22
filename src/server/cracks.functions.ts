@@ -2,12 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin as _supabaseAdmin } from "@/integrations/supabase/client.server";
+import { hasRequiredRank, type AccountRank } from "@/lib/ranks";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const supabaseAdmin = _supabaseAdmin as any;
 const SESSION_COOKIE = "ul_session";
 
-async function requireAdmin(): Promise<{ id: string; nick: string } | null> {
+async function requireAdmin(): Promise<{ id: string; nick: string; rank: AccountRank } | null> {
   const token = getCookie(SESSION_COOKIE);
   if (!token) return null;
   const { data: sess } = await supabaseAdmin
@@ -18,11 +19,11 @@ async function requireAdmin(): Promise<{ id: string; nick: string } | null> {
   if (!sess || new Date(sess.expires_at).getTime() < Date.now()) return null;
   const { data: acc } = await supabaseAdmin
     .from("accounts")
-    .select("id, nick, role, banned")
+    .select("id, nick, rank, banned")
     .eq("id", sess.account_id)
     .maybeSingle();
-  if (!acc || acc.banned || acc.role !== "admin") return null;
-  return { id: acc.id, nick: acc.nick };
+  if (!acc || acc.banned || !hasRequiredRank(acc.rank, "moderator")) return null;
+  return { id: acc.id, nick: acc.nick, rank: acc.rank };
 }
 
 // ---------- list hashes (top by count, paginated) ----------
