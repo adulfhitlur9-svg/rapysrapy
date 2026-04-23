@@ -29,10 +29,10 @@ const HISTORY_MAX = 20;
 
 const CHAT_CHANNELS = [
   { name: "global_chat", label: "Global chat", active: true },
-  { name: "staff_room", label: "Staff room" },
-  { name: "dev_log", label: "Dev log" },
-  { name: "marketplace", label: "Marketplace" },
-  { name: "support", label: "Support" },
+  { name: "staff_room", label: "Staff room", active: false },
+  { name: "dev_log", label: "Dev log", active: false },
+  { name: "marketplace", label: "Marketplace", active: false },
+  { name: "support", label: "Support", active: false },
 ] as const;
 
 const CHAT_MESSAGES = [
