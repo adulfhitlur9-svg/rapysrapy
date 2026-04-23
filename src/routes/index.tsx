@@ -158,6 +158,7 @@ function HomePage() {
   const premiumPct = stats.total ? ((stats.premium / stats.total) * 100).toFixed(1) : "0";
   const decodedPct = stats.total ? ((stats.decoded / stats.total) * 100).toFixed(1) : "0";
   const recentHistory = history.slice(0, 5);
+  const onlineCount = Object.values(CHAT_MEMBERS).reduce((sum, group) => sum + group.length, 0);
 
   return (
     <div className="min-h-screen flex flex-col bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_92%,black)_0%,var(--background)_100%)]">
@@ -393,9 +394,122 @@ function HomePage() {
             </section>
           )}
 
+          {!result && !loading && user && (
+            <section className="mb-6 overflow-hidden rounded-2xl border border-border bg-card/55 shadow-[var(--shadow-card)]">
+              <div className="grid min-h-[640px] lg:grid-cols-[180px_minmax(0,1fr)_280px]">
+                <aside className="flex flex-col justify-between border-b border-border/70 bg-background/70 lg:border-b-0 lg:border-r">
+                  <div>
+                    <div className="border-b border-border/70 p-4">
+                      <div className="mb-3 text-lg font-black tracking-[0.18em] text-foreground">METRIC_DB</div>
+                      <div className="space-y-3 rounded-lg border border-primary/20 bg-card/80 p-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">server_node_01</div>
+                          <div className="mt-1 text-xs font-semibold text-warning">Status: operationaI</div>
+                        </div>
+                        <div className="rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-warning">
+                          encryption active
+                        </div>
+                      </div>
+                    </div>
+
+                    <nav className="p-3">
+                      <div className="space-y-1">
+                        {CHAT_CHANNELS.map((channel) => (
+                          <button
+                            key={channel.name}
+                            type="button"
+                            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left text-sm transition ${
+                              channel.active
+                                ? "border-accent/35 bg-accent/15 text-foreground shadow-[var(--shadow-glow)]"
+                                : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
+                            }`}
+                          >
+                            <span className="text-base">{channel.active ? "💬" : "•"}</span>
+                            <div>
+                              <div className="font-semibold uppercase tracking-[0.12em]">{channel.label}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </nav>
+                  </div>
+
+                  <div className="border-t border-border/70 p-3">
+                    <button className="mb-2 flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left text-sm text-muted-foreground transition hover:border-border hover:bg-muted/40 hover:text-foreground">
+                      <span>⚙</span>
+                      <span className="font-semibold uppercase tracking-[0.12em]">Settings</span>
+                    </button>
+                    <button className="flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left text-sm text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive">
+                      <span>↪</span>
+                      <span className="font-semibold uppercase tracking-[0.12em]">Logout</span>
+                    </button>
+                  </div>
+                </aside>
+
+                <div className="flex min-h-[640px] flex-col bg-background/45">
+                  <div className="flex items-center justify-between gap-4 border-b border-border/70 px-5 py-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-bold text-foreground"># ogólny</span>
+                        <span className="hidden text-xs text-muted-foreground sm:inline">
+                          Główny kanał komunikacyjny dla wszystkich użytkowników na serwerze.
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border bg-card/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      live feed
+                    </div>
+                  </div>
+
+                  <div className="flex-1 space-y-4 overflow-hidden px-4 py-4 sm:px-5">
+                    {CHAT_MESSAGES.map((message) => (
+                      <ChatMessageCard key={message.id} message={message} />
+                    ))}
+                  </div>
+
+                  <div className="border-t border-border/70 bg-card/70 px-4 py-3 sm:px-5">
+                    <div className="flex items-center gap-3 rounded-xl border border-border bg-background/80 px-3 py-3">
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground"
+                      >
+                        +
+                      </button>
+                      <div className="flex-1 text-sm text-muted-foreground">/ wpisz wiadomość...</div>
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-full border border-accent/30 bg-accent text-accent-foreground transition hover:opacity-90"
+                      >
+                        ➤
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      <span>Używaj @ do oznaczania użytkowników</span>
+                      <span>Wpisz / by zobaczyć komendy</span>
+                    </div>
+                  </div>
+                </div>
+
+                <aside className="border-t border-border/70 bg-background/70 lg:border-l lg:border-t-0">
+                  <div className="border-b border-border/70 px-5 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground">Użytkownicy</div>
+                      <div className="text-sm font-bold text-primary">{onlineCount}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-5 px-5 py-4">
+                    <UsersGroup title="Administracja" count={CHAT_MEMBERS.administration.length} users={CHAT_MEMBERS.administration} tone="accent" />
+                    <UsersGroup title="Moderatorzy" count={CHAT_MEMBERS.moderators.length} users={CHAT_MEMBERS.moderators} tone="warning" />
+                    <UsersGroup title="Gracze" count={CHAT_MEMBERS.players.length} users={CHAT_MEMBERS.players} tone="primary" />
+                  </div>
+                </aside>
+              </div>
+            </section>
+          )}
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
             <div className="min-w-0">
-              {!result && !loading && user && (
+              {!result && !loading && user && false && (
                 <div className="mb-6 rounded-2xl border border-dashed border-border bg-card/30 p-8 text-center text-muted-foreground">
                   <div className="mb-3 text-4xl">⌕</div>
                   <p className="text-sm">Wyniki wyszukiwania pojawią się tutaj po wpisaniu nicku.</p>
