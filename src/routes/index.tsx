@@ -509,13 +509,6 @@ function HomePage() {
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
             <div className="min-w-0">
-              {!result && !loading && user && false && (
-                <div className="mb-6 rounded-2xl border border-dashed border-border bg-card/30 p-8 text-center text-muted-foreground">
-                  <div className="mb-3 text-4xl">⌕</div>
-                  <p className="text-sm">Wyniki wyszukiwania pojawią się tutaj po wpisaniu nicku.</p>
-                </div>
-              )}
-
               {loading && (
                 <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card/50 py-20 text-center text-muted-foreground">
                   <Spinner large />
@@ -631,7 +624,9 @@ function ChatMessageCard({ message }: { message: (typeof CHAT_MESSAGES)[number] 
         </span>
       </div>
       <p className="max-w-3xl text-sm leading-relaxed text-foreground/90">{message.message}</p>
-      {message.note && <div className="mt-3 text-xs font-medium text-destructive">● {message.note}</div>}
+      {"note" in message && message.note ? (
+        <div className="mt-3 text-xs font-medium text-destructive">● {message.note}</div>
+      ) : null}
     </article>
   );
 }
