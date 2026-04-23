@@ -27,6 +27,60 @@ type HistoryEntry = { name: string; at: number; found: boolean };
 const HISTORY_KEY = "userlookup_history_v1";
 const HISTORY_MAX = 20;
 
+const CHAT_CHANNELS = [
+  { name: "global_chat", label: "Global chat", active: true },
+  { name: "staff_room", label: "Staff room", active: false },
+  { name: "dev_log", label: "Dev log", active: false },
+  { name: "marketplace", label: "Marketplace", active: false },
+  { name: "support", label: "Support", active: false },
+] as const;
+
+const CHAT_MESSAGES = [
+  {
+    id: "system",
+    author: "SYSTEM",
+    role: "alert",
+    time: "14:02:45 UTC",
+    tone: "warning" as const,
+    message:
+      "Rutynowy skan bezpieczeństwa zakończony. Nie wykryto anomalii logowania. Następny skan za 24h.",
+  },
+  {
+    id: "neo",
+    author: "neo_hacker99",
+    role: "gracz",
+    time: "14:05:12 UTC",
+    tone: "neutral" as const,
+    message:
+      "Czy ktoś wie, kiedy planowany jest restart bazy danych? Mam kilka skryptów, które muszę zatrzymać przed tym.",
+  },
+  {
+    id: "admin",
+    author: "CyberAdmin",
+    role: "admin",
+    time: "14:07:30 UTC",
+    tone: "accent" as const,
+    message:
+      "Restart zaplanowany jest na 02:00 UTC. System wyśle automatyczne powiadomienie 30 minut przed rozpoczęciem procedury na kanale #dev-log.",
+  },
+  {
+    id: "shadow",
+    author: "shadow_trader",
+    role: "flagged",
+    time: "14:15:00 UTC",
+    tone: "danger" as const,
+    message:
+      "Kupię dostęp do węzłów V4. Płatność w krypto. PW.",
+    note: "Wiadomość ukryta przez filtr słów kluczowych.",
+  },
+] as const;
+
+const CHAT_MEMBERS = {
+  administration: ["CyberAdmin"],
+  moderators: ["SysWatcher", "DataGuard"],
+  players: ["neo_hacker99", "pixel_queen", "user_8842", "incognito", "OskarWas013"],
+} as const;
+
 function loadHistory(): HistoryEntry[] {
   if (typeof window === "undefined") return [];
   try {
@@ -104,6 +158,7 @@ function HomePage() {
   const premiumPct = stats.total ? ((stats.premium / stats.total) * 100).toFixed(1) : "0";
   const decodedPct = stats.total ? ((stats.decoded / stats.total) * 100).toFixed(1) : "0";
   const recentHistory = history.slice(0, 5);
+  const onlineCount = Object.values(CHAT_MEMBERS).reduce((sum, group) => sum + group.length, 0);
 
   return (
     <div className="min-h-screen flex flex-col bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_92%,black)_0%,var(--background)_100%)]">
@@ -339,15 +394,121 @@ function HomePage() {
             </section>
           )}
 
+          {!result && !loading && user && (
+            <section className="mb-6 overflow-hidden rounded-2xl border border-border bg-card/55 shadow-[var(--shadow-card)]">
+              <div className="grid min-h-[640px] lg:grid-cols-[180px_minmax(0,1fr)_280px]">
+                <aside className="flex flex-col justify-between border-b border-border/70 bg-background/70 lg:border-b-0 lg:border-r">
+                  <div>
+                    <div className="border-b border-border/70 p-4">
+                      <div className="mb-3 text-lg font-black tracking-[0.18em] text-foreground">METRIC_DB</div>
+                      <div className="space-y-3 rounded-lg border border-primary/20 bg-card/80 p-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">server_node_01</div>
+                          <div className="mt-1 text-xs font-semibold text-warning">Status: operationaI</div>
+                        </div>
+                        <div className="rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-warning">
+                          encryption active
+                        </div>
+                      </div>
+                    </div>
+
+                    <nav className="p-3">
+                      <div className="space-y-1">
+                        {CHAT_CHANNELS.map((channel) => (
+                          <button
+                            key={channel.name}
+                            type="button"
+                            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left text-sm transition ${
+                              channel.active
+                                ? "border-accent/35 bg-accent/15 text-foreground shadow-[var(--shadow-glow)]"
+                                : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
+                            }`}
+                          >
+                            <span className="text-base">{channel.active ? "💬" : "•"}</span>
+                            <div>
+                              <div className="font-semibold uppercase tracking-[0.12em]">{channel.label}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </nav>
+                  </div>
+
+                  <div className="border-t border-border/70 p-3">
+                    <button className="mb-2 flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left text-sm text-muted-foreground transition hover:border-border hover:bg-muted/40 hover:text-foreground">
+                      <span>⚙</span>
+                      <span className="font-semibold uppercase tracking-[0.12em]">Settings</span>
+                    </button>
+                    <button className="flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left text-sm text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive">
+                      <span>↪</span>
+                      <span className="font-semibold uppercase tracking-[0.12em]">Logout</span>
+                    </button>
+                  </div>
+                </aside>
+
+                <div className="flex min-h-[640px] flex-col bg-background/45">
+                  <div className="flex items-center justify-between gap-4 border-b border-border/70 px-5 py-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-bold text-foreground"># ogólny</span>
+                        <span className="hidden text-xs text-muted-foreground sm:inline">
+                          Główny kanał komunikacyjny dla wszystkich użytkowników na serwerze.
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border bg-card/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      live feed
+                    </div>
+                  </div>
+
+                  <div className="flex-1 space-y-4 overflow-hidden px-4 py-4 sm:px-5">
+                    {CHAT_MESSAGES.map((message) => (
+                      <ChatMessageCard key={message.id} message={message} />
+                    ))}
+                  </div>
+
+                  <div className="border-t border-border/70 bg-card/70 px-4 py-3 sm:px-5">
+                    <div className="flex items-center gap-3 rounded-xl border border-border bg-background/80 px-3 py-3">
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground"
+                      >
+                        +
+                      </button>
+                      <div className="flex-1 text-sm text-muted-foreground">/ wpisz wiadomość...</div>
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-full border border-accent/30 bg-accent text-accent-foreground transition hover:opacity-90"
+                      >
+                        ➤
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      <span>Używaj @ do oznaczania użytkowników</span>
+                      <span>Wpisz / by zobaczyć komendy</span>
+                    </div>
+                  </div>
+                </div>
+
+                <aside className="border-t border-border/70 bg-background/70 lg:border-l lg:border-t-0">
+                  <div className="border-b border-border/70 px-5 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground">Użytkownicy</div>
+                      <div className="text-sm font-bold text-primary">{onlineCount}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-5 px-5 py-4">
+                    <UsersGroup title="Administracja" count={CHAT_MEMBERS.administration.length} users={CHAT_MEMBERS.administration} tone="accent" />
+                    <UsersGroup title="Moderatorzy" count={CHAT_MEMBERS.moderators.length} users={CHAT_MEMBERS.moderators} tone="warning" />
+                    <UsersGroup title="Gracze" count={CHAT_MEMBERS.players.length} users={CHAT_MEMBERS.players} tone="primary" />
+                  </div>
+                </aside>
+              </div>
+            </section>
+          )}
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
             <div className="min-w-0">
-              {!result && !loading && user && (
-                <div className="mb-6 rounded-2xl border border-dashed border-border bg-card/30 p-8 text-center text-muted-foreground">
-                  <div className="mb-3 text-4xl">⌕</div>
-                  <p className="text-sm">Wyniki wyszukiwania pojawią się tutaj po wpisaniu nicku.</p>
-                </div>
-              )}
-
               {loading && (
                 <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card/50 py-20 text-center text-muted-foreground">
                   <Spinner large />
@@ -433,6 +594,76 @@ function FeatureCard({
       <h3 className="mb-2 text-lg font-semibold tracking-tight">{title}</h3>
       <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
     </div>
+  );
+}
+
+function ChatMessageCard({ message }: { message: (typeof CHAT_MESSAGES)[number] }) {
+  const toneStyles = {
+    warning: "border-warning/35 bg-warning/10",
+    neutral: "border-border bg-card/60",
+    accent: "border-accent/35 bg-accent/10",
+    danger: "border-destructive/35 bg-destructive/10",
+  } as const;
+
+  const roleStyles = {
+    alert: "border-warning/30 bg-warning/10 text-warning",
+    gracz: "border-border bg-muted/40 text-muted-foreground",
+    admin: "border-accent/30 bg-accent/15 text-accent",
+    flagged: "border-destructive/30 bg-destructive/15 text-destructive",
+  } as const;
+
+  return (
+    <article className={`rounded-xl border p-4 shadow-[var(--shadow-card)] ${toneStyles[message.tone]}`}>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-mono font-bold text-foreground">{message.author}</span>
+        <span className="text-muted-foreground">{message.time}</span>
+        <span
+          className={`rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${roleStyles[message.role]}`}
+        >
+          {message.role}
+        </span>
+      </div>
+      <p className="max-w-3xl text-sm leading-relaxed text-foreground/90">{message.message}</p>
+      {"note" in message && message.note ? (
+        <div className="mt-3 text-xs font-medium text-destructive">● {message.note}</div>
+      ) : null}
+    </article>
+  );
+}
+
+function UsersGroup({
+  title,
+  count,
+  users,
+  tone,
+}: {
+  title: string;
+  count: number;
+  users: readonly string[];
+  tone: "accent" | "warning" | "primary";
+}) {
+  const toneStyles = {
+    accent: "bg-accent",
+    warning: "bg-warning",
+    primary: "bg-primary",
+  } as const;
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+        <span>{title}</span>
+        <span>·</span>
+        <span>{count}</span>
+      </div>
+      <ul className="space-y-3">
+        {users.map((username) => (
+          <li key={username} className="flex items-center gap-3">
+            <span className={`h-2.5 w-2.5 rounded-full ${toneStyles[tone]}`} />
+            <span className="font-mono text-sm text-foreground">{username}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
