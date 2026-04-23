@@ -97,16 +97,9 @@ export function HashesTab() {
     }
   };
 
-  // Pomijamy failed I cracked w batchach
-  const copyableOnPage = useMemo(
-    () => items.filter((x) => x.plaintext === null && !x.failed),
-    [items]
-  );
+  const copyableOnPage = useMemo(() => items.filter((x) => x.plaintext === null && !x.failed), [items]);
   const totalBatches = Math.max(1, Math.ceil(copyableOnPage.length / BATCH_SIZE));
-  const currentBatchIdx = Math.min(
-    totalBatches - 1,
-    Math.floor(batchOffset / BATCH_SIZE)
-  );
+  const currentBatchIdx = Math.min(totalBatches - 1, Math.floor(batchOffset / BATCH_SIZE));
 
   const copyBatch = async (offset = batchOffset) => {
     const slice = copyableOnPage.slice(offset, offset + BATCH_SIZE);
@@ -114,9 +107,7 @@ export function HashesTab() {
     const text = slice.map((x) => x.hash).join("\n");
     try {
       await navigator.clipboard.writeText(text);
-      setBatchInfo(
-        `Skopiowano ${slice.length} hashy (batch ${Math.floor(offset / BATCH_SIZE) + 1}/${totalBatches}). Pomija odszyfrowane i oznaczone jako 'nie do złamania'.`
-      );
+      setBatchInfo(`Skopiowano ${slice.length} hashy (batch ${Math.floor(offset / BATCH_SIZE) + 1}/${totalBatches}).`);
       setTimeout(() => setBatchInfo(null), 3500);
     } catch {
       alert("Nie udało się skopiować");
@@ -154,9 +145,7 @@ export function HashesTab() {
         setImportResult(`❌ ${r.error}`);
         return;
       }
-      setImportResult(
-        `✅ Zaimportowano ${r.inserted} złamanych haseł. Oznaczono ${r.markedFailed} hashy jako 'nie do złamania' (linie bez ":"). Pominięto ${r.ignoredEmptyPlain} z pustym hasłem.`
-      );
+      setImportResult(`✅ Zaimportowano ${r.inserted} złamanych haseł. Oznaczono ${r.markedFailed} jako 'nie do złamania'. Pominięto ${r.ignoredEmptyPlain} pustych.`);
       setImportText("");
       await reload();
     } finally {
@@ -166,17 +155,15 @@ export function HashesTab() {
 
   if (!loaded) {
     return (
-      <div className="text-center py-12">
+      <div className="text-center py-8">
         <button
           onClick={() => reload(1)}
           disabled={busy}
-          className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-50"
+          className="rounded-lg border border-primary/30 bg-primary px-6 py-3 font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-50"
         >
           {busy ? "Ładowanie hashy…" : "Załaduj listę hashy"}
         </button>
-        <p className="text-xs text-muted-foreground mt-3">
-          Agregacja ~setek tysięcy haseł — może zająć kilka sekund.
-        </p>
+        <p className="mt-3 text-xs text-muted-foreground">Agregacja dużej liczby hashy może zająć kilka sekund.</p>
       </div>
     );
   }
@@ -184,7 +171,7 @@ export function HashesTab() {
   return (
     <div>
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+        <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <Mini label="Unikalnych hashy" value={stats.uniqueHashes} />
           <Mini label="Odszyfrowanych" value={stats.crackedHashes} accent />
           <Mini label="Nie do złamania" value={stats.failedHashes} danger />
@@ -193,94 +180,66 @@ export function HashesTab() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 mb-4 items-center">
-        <input
-          type="text"
-          placeholder="Szukaj po hashu lub haśle…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && reload(1)}
-          className="flex-1 min-w-[200px] px-4 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[220px] flex-1">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">⌕</span>
+          <input
+            type="text"
+            placeholder="Szukaj po hashu lub haśle…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && reload(1)}
+            className="h-12 w-full rounded-lg border border-border bg-input pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+        <label className="flex h-12 items-center gap-3 rounded-lg border border-border bg-background/60 px-4 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={onlyUncracked}
-            onChange={(e) => {
-              setOnlyUncracked(e.target.checked);
-            }}
+            onChange={(e) => setOnlyUncracked(e.target.checked)}
+            className="h-4 w-4 accent-[var(--color-primary)]"
           />
           tylko nieodszyfrowane
         </label>
-        <button
-          onClick={() => reload(1)}
-          disabled={busy}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
-        >
+        <ControlButton onClick={() => reload(1)} disabled={busy} variant="primary">
           {busy ? "…" : "Filtruj"}
-        </button>
-        <button
-          onClick={() => copyBatch()}
-          className="px-4 py-2 rounded-lg border border-primary/60 bg-primary/10 text-sm font-semibold hover:bg-primary/20"
-          title={`Skopiuj kolejne ${BATCH_SIZE} hashy (pomija odszyfrowane i oznaczone jako 'nie do złamania')`}
-        >
-          📋 Kopiuj batch {currentBatchIdx + 1}/{totalBatches} ({Math.min(BATCH_SIZE, Math.max(0, copyableOnPage.length - batchOffset))} hashy)
-        </button>
-        <button
-          onClick={prevBatch}
-          disabled={batchOffset === 0}
-          className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-30"
-          title="Poprzedni batch"
-        >
+        </ControlButton>
+        <ControlButton onClick={() => copyBatch()}>
+          📋 Batch {currentBatchIdx + 1}/{totalBatches}
+        </ControlButton>
+        <ControlButton onClick={prevBatch} disabled={batchOffset === 0 || busy}>
           ‹
-        </button>
-        <button
-          onClick={nextBatch}
-          className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
-          title="Następny batch (auto-przejście na kolejną stronę)"
-        >
+        </ControlButton>
+        <ControlButton onClick={nextBatch} disabled={busy}>
           ›
-        </button>
-        <button
-          onClick={() => {
-            setImportOpen(true);
-            setImportResult(null);
-          }}
-          className="px-4 py-2 rounded-lg border border-success/60 bg-success/10 text-sm font-semibold hover:bg-success/20"
-          title="Wklej odpowiedź z hashes.com"
-        >
+        </ControlButton>
+        <ControlButton onClick={() => {
+          setImportOpen(true);
+          setImportResult(null);
+        }} variant="success">
           📥 Wklej wyniki
-        </button>
+        </ControlButton>
         <a
           href="https://hashes.com/en/decrypt/hash"
           target="_blank"
           rel="noopener noreferrer"
-          className="px-4 py-2 rounded-lg border border-primary/40 text-sm text-primary hover:bg-primary/10"
+          className="inline-flex h-12 items-center rounded-lg border border-border bg-background/60 px-4 text-sm text-muted-foreground transition hover:text-foreground"
         >
           ↗ hashes.com
         </a>
       </div>
 
-      {batchInfo && (
-        <div className="mb-3 px-4 py-2 rounded-lg border border-primary/40 bg-primary/10 text-primary text-sm">
-          {batchInfo}
-        </div>
-      )}
+      {batchInfo && <div className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">{batchInfo}</div>}
+      {error && <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
-      {error && (
-        <div className="mb-4 px-4 py-2 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-background/45">
+        <table className="w-full min-w-[980px] text-sm">
+          <thead className="bg-muted/30 text-xs uppercase tracking-[0.22em] text-muted-foreground">
             <tr>
-              <th className="px-3 py-3 text-left w-20">Kont</th>
-              <th className="px-3 py-3 text-left">Hash</th>
-              <th className="px-3 py-3 text-left">Hasło (plain text)</th>
-              <th className="px-3 py-3 text-right w-44">Akcje</th>
+              <th className="w-24 px-4 py-3 text-left">Kont</th>
+              <th className="px-4 py-3 text-left">Hash</th>
+              <th className="px-4 py-3 text-left">Hasło</th>
+              <th className="w-52 px-4 py-3 text-right">Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -288,183 +247,127 @@ export function HashesTab() {
               const draft = drafts[it.hash];
               const value = draft ?? it.plaintext ?? "";
               const dirty = draft !== undefined && draft !== (it.plaintext ?? "");
-              const rowBg = it.failed
-                ? "bg-destructive/10 hover:bg-destructive/15"
-                : "hover:bg-muted/20";
+              const rowBg = it.failed ? "bg-destructive/8 hover:bg-destructive/12" : "hover:bg-muted/20";
               return (
-                <tr key={it.hash} className={`border-t border-border ${rowBg}`}>
-                  <td className="px-3 py-2 font-mono font-bold text-primary">
-                    {it.count.toLocaleString()}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs break-all max-w-md">
+                <tr key={it.hash} className={`border-t border-border/80 transition ${rowBg}`}>
+                  <td className="px-4 py-3 font-mono font-bold text-primary">{it.count.toLocaleString()}</td>
+                  <td className="px-4 py-3 font-mono text-xs break-all">
                     <div className="flex items-center gap-2">
-                      <span className={it.failed ? "text-destructive line-through" : ""}>
-                        {it.hash}
-                      </span>
-                      {it.failed && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive font-semibold shrink-0">
-                          NIE DO ZŁAMANIA
-                        </span>
-                      )}
+                      <span className={it.failed ? "text-destructive line-through" : "text-foreground"}>{it.hash}</span>
+                      {it.failed && <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-destructive">failed</span>}
                       <button
                         onClick={() => copy(it.hash)}
-                        className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted shrink-0"
+                        className="rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition hover:text-foreground"
                         title="Kopiuj hash"
                       >
                         {copiedHash === it.hash ? "✓" : "📋"}
                       </button>
                     </div>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3">
                     <input
                       type="text"
                       value={value}
-                      onChange={(e) =>
-                        setDrafts((d) => ({ ...d, [it.hash]: e.target.value }))
-                      }
+                      onChange={(e) => setDrafts((d) => ({ ...d, [it.hash]: e.target.value }))}
                       onKeyDown={(e) => e.key === "Enter" && handleSave(it.hash)}
                       placeholder={it.plaintext ? "" : "wpisz hasło…"}
-                      className={`w-full px-2 py-1 rounded border bg-background text-sm font-mono ${
-                        it.plaintext
-                          ? "border-success/40 text-success"
-                          : "border-border"
-                      } ${dirty ? "ring-2 ring-primary" : ""}`}
+                      className={`h-10 w-full rounded-lg border bg-input px-3 text-sm font-mono outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 ${
+                        it.plaintext ? "border-success/40 text-success" : "border-border text-foreground"
+                      } ${dirty ? "ring-2 ring-primary/30" : ""}`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => handleToggleFailed(it)}
-                      className={`text-xs px-2 py-1 rounded border mr-1 ${
-                        it.failed
-                          ? "border-success/40 text-success hover:bg-success/10"
-                          : "border-destructive/40 text-destructive hover:bg-destructive/10"
-                      }`}
-                      title={
-                        it.failed
-                          ? "Odznacz — pozwól znowu kopiować ten hash"
-                          : "Oznacz jako 'nie do złamania' — pomijaj przy kopiowaniu"
-                      }
-                    >
-                      {it.failed ? "↺ Odznacz" : "✕ Failed"}
-                    </button>
-                    <button
-                      onClick={() => handleSave(it.hash)}
-                      disabled={!dirty && !it.plaintext}
-                      className="text-xs px-2 py-1 rounded border border-border hover:bg-muted disabled:opacity-30"
-                    >
-                      {dirty ? "Zapisz" : value ? "Usuń" : "—"}
-                    </button>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      <ControlButton onClick={() => handleToggleFailed(it)} variant={it.failed ? "success" : "danger"}>
+                        {it.failed ? "↺ Odznacz" : "✕ Failed"}
+                      </ControlButton>
+                      <ControlButton onClick={() => handleSave(it.hash)} disabled={!dirty && !it.plaintext}>
+                        {dirty ? "Zapisz" : value ? "Usuń" : "—"}
+                      </ControlButton>
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {items.length === 0 && !busy && (
               <tr>
-                <td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">
-                  Brak hashy
-                </td>
+                <td colSpan={4} className="px-4 py-12 text-center text-sm text-muted-foreground">Brak hashy.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Paginacja */}
-      <div className="flex items-center justify-between mt-4 text-sm">
-        <div className="text-muted-foreground">
-          Strona {page} / {totalPages}
-        </div>
+      <div className="mt-4 flex items-center justify-between gap-4 text-sm">
+        <div className="text-muted-foreground">Strona {page} / {totalPages}</div>
         <div className="flex gap-2">
-          <button
-            onClick={() => reload(1)}
-            disabled={page === 1 || busy}
-            className="px-3 py-1.5 rounded border border-border hover:bg-muted disabled:opacity-30"
-          >
-            «
-          </button>
-          <button
-            onClick={() => reload(page - 1)}
-            disabled={page === 1 || busy}
-            className="px-3 py-1.5 rounded border border-border hover:bg-muted disabled:opacity-30"
-          >
-            ‹ Poprzednia
-          </button>
-          <button
-            onClick={() => reload(page + 1)}
-            disabled={page >= totalPages || busy}
-            className="px-3 py-1.5 rounded border border-border hover:bg-muted disabled:opacity-30"
-          >
-            Następna ›
-          </button>
-          <button
-            onClick={() => reload(totalPages)}
-            disabled={page >= totalPages || busy}
-            className="px-3 py-1.5 rounded border border-border hover:bg-muted disabled:opacity-30"
-          >
-            »
-          </button>
+          <ControlButton onClick={() => reload(1)} disabled={page === 1 || busy}>«</ControlButton>
+          <ControlButton onClick={() => reload(page - 1)} disabled={page === 1 || busy}>‹ Poprzednia</ControlButton>
+          <ControlButton onClick={() => reload(page + 1)} disabled={page >= totalPages || busy}>Następna ›</ControlButton>
+          <ControlButton onClick={() => reload(totalPages)} disabled={page >= totalPages || busy}>»</ControlButton>
         </div>
       </div>
 
       {importOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-          onClick={() => !importBusy && setImportOpen(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">Wklej wyniki z hashes.com</h3>
-              <button
-                onClick={() => !importBusy && setImportOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !importBusy && setImportOpen(false)}>
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h3 className="font-semibold tracking-tight">Wklej wyniki z hashes.com</h3>
+              <button onClick={() => !importBusy && setImportOpen(false)} className="text-muted-foreground transition hover:text-foreground">✕</button>
             </div>
-            <div className="p-5 flex-1 overflow-y-auto">
-              <p className="text-sm text-muted-foreground mb-3">
-                Wklej całą odpowiedź z hashes.com.{" "}
-                <strong>Linie z <code className="px-1 bg-muted rounded">hash:hasło</code></strong> zostaną zapisane jako odszyfrowane.{" "}
-                <strong>Linie z samym hashem (bez <code>:</code>)</strong> zostaną oznaczone jako{" "}
-                <span className="text-destructive font-semibold">'nie do złamania'</span>{" "}
-                i będą pomijane przy kolejnym kopiowaniu (możesz je później odznaczyć w tabeli).
-                Nagłówki <em>Found:</em>, <em>Left:</em>, <em>Hash Identifier</em> są ignorowane.
+            <div className="flex-1 overflow-y-auto p-5">
+              <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
+                Linie w formacie <code className="rounded bg-muted px-1 text-foreground">hash:hasło</code> zapiszą odszyfrowane hasła. Linie z samym hashem zostaną oznaczone jako nie do złamania.
               </p>
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder={`Found:\nq+Mf4aIRPn6L8XQWRRWAKAbTiM9POUzOrOc0Ghgicas=:haslo\noV+K4HZ1v7luCEv7T1L7LCIJEGGq6G4Ot2pV9OUt104=:haslo123\n\nLeft:\nHs7NKXLZkBCZt3Bn/DCa7U3Em6UqV7/9+pH+qNQMiYc=`}
-                className="w-full h-72 px-3 py-2 rounded-lg border border-border bg-background font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                className="h-72 w-full rounded-lg border border-border bg-input px-3 py-2 font-mono text-xs outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
               />
-              {importResult && (
-                <div className="mt-3 px-4 py-2 rounded-lg border border-border bg-muted/40 text-sm">
-                  {importResult}
-                </div>
-              )}
+              {importResult && <div className="mt-3 rounded-lg border border-border bg-background/60 px-4 py-3 text-sm">{importResult}</div>}
             </div>
-            <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
-              <button
-                onClick={() => setImportOpen(false)}
-                disabled={importBusy}
-                className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted disabled:opacity-50"
-              >
-                Zamknij
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={importBusy || !importText.trim()}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
-              >
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ControlButton onClick={() => setImportOpen(false)} disabled={importBusy}>Zamknij</ControlButton>
+              <ControlButton onClick={handleImport} disabled={importBusy || !importText.trim()} variant="primary">
                 {importBusy ? "Importuję…" : "Zaimportuj"}
-              </button>
+              </ControlButton>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function ControlButton({
+  children,
+  onClick,
+  disabled,
+  variant = "default",
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "default" | "primary" | "success" | "danger";
+}) {
+  const tone =
+    variant === "primary"
+      ? "border-primary/30 bg-primary text-primary-foreground shadow-[var(--shadow-glow)] hover:opacity-90"
+      : variant === "success"
+        ? "border-success/30 bg-success/10 text-success hover:bg-success/15"
+        : variant === "danger"
+          ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15"
+          : "border-border bg-background/60 text-muted-foreground hover:text-foreground";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-12 items-center rounded-lg border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -481,20 +384,16 @@ function Mini({
 }) {
   return (
     <div
-      className={`rounded-xl border p-3 ${
+      className={`rounded-xl border p-4 ${
         danger
-          ? "border-destructive/30 bg-destructive/5"
+          ? "border-destructive/30 bg-destructive/10"
           : accent
-            ? "border-primary/30 bg-primary/5"
-            : "border-border bg-card"
+            ? "border-primary/30 bg-primary/10"
+            : "border-border bg-background/45"
       }`}
     >
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div
-        className={`text-xl font-bold font-mono mt-0.5 ${
-          danger ? "text-destructive" : accent ? "text-primary" : ""
-        }`}
-      >
+      <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-xl font-bold font-mono ${danger ? "text-destructive" : accent ? "text-primary" : "text-foreground"}`}>
         {value.toLocaleString()}
       </div>
     </div>

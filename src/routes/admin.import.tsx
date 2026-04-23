@@ -141,7 +141,6 @@ export function ImportPage() {
     append(`📂 ${file.name} — ${(file.size / 1024 / 1024).toFixed(1)} MB`);
     append(`▶ Worker startuje, batch = ${BATCH_SIZE}`);
 
-    // Kolejka batchy + sekwencyjny consumer
     const queue: unknown[][] = [];
     let processing = false;
     let totalInserted = 0;
@@ -166,23 +165,19 @@ export function ImportPage() {
         try {
           const res = await bulkImport({ data: { token, records } });
           const dt = performance.now() - t0;
-          if (res.error) {
-            throw new Error(res.error);
-          }
+          if (res.error) throw new Error(res.error);
           totalInserted += res.inserted;
           totalSkipped += res.skipped;
           setProgress((p) => ({
             ...p,
             inserted: totalInserted,
-            skipped: totalSkipped + p.skipped - p.skipped, // keep parser-skipped value untouched
+            skipped: totalSkipped + p.skipped - p.skipped,
             batchNum,
             queuedBatches: queue.length,
             lastBatchMs: dt,
             elapsedMs: performance.now() - startedAt,
           }));
-          append(
-            `✓ Batch #${batchNum} OK w ${(dt / 1000).toFixed(1)}s — wstawione +${res.inserted}, duplikaty +${res.skipped}`,
-          );
+          append(`✓ Batch #${batchNum} OK w ${(dt / 1000).toFixed(1)}s — wstawione +${res.inserted}, duplikaty +${res.skipped}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           append(`✗ Batch #${batchNum} błąd: ${msg}`);
@@ -202,19 +197,16 @@ export function ImportPage() {
       if (workerDone && queue.length === 0 && !cancelRef.current) {
         const total = (performance.now() - startedAt) / 1000;
         setPhase("Zakończono");
-        append(
-          `🎉 Gotowe w ${total.toFixed(1)}s · wstawione ${totalInserted.toLocaleString()} · duplikaty ${totalSkipped.toLocaleString()} · batchy ${batchNum}`,
-        );
+        append(`🎉 Gotowe w ${total.toFixed(1)}s · wstawione ${totalInserted.toLocaleString()} · duplikaty ${totalSkipped.toLocaleString()} · batchy ${batchNum}`);
         window.clearInterval(ticker);
         setBusy(false);
         if (inputRef.current) inputRef.current.value = "";
       }
     };
 
-    const worker = new Worker(
-      new URL("@/workers/jsonStreamParser.worker.ts", import.meta.url),
-      { type: "module" },
-    );
+    const worker = new Worker(new URL("@/workers/jsonStreamParser.worker.ts", import.meta.url), {
+      type: "module",
+    });
     workerRef.current = worker;
 
     worker.onmessage = (e: MessageEvent<WorkerOutMsg>) => {
@@ -270,36 +262,35 @@ export function ImportPage() {
 
   if (!authed) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <form
-          onSubmit={handleLogin}
-          className="w-full max-w-sm rounded-2xl border border-border bg-card p-8"
-        >
-          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
-            ← powrót
-          </Link>
-          <h1 className="text-2xl font-bold mt-3 mb-1">Admin · import</h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            Strefa zastrzeżona. Podaj token administratora.
-          </p>
-          <input
-            type="password"
-            autoFocus
-            autoComplete="current-password"
-            placeholder="Token admina"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          {authError && <div className="mt-3 text-sm text-destructive">{authError}</div>}
-          <button
-            type="submit"
-            disabled={authBusy || !token}
-            className="mt-4 w-full px-4 py-3 rounded-xl bg-primary text-primary-foreground font-semibold disabled:opacity-50 hover:opacity-90 transition"
-          >
-            {authBusy ? "Sprawdzam…" : "Wejdź"}
-          </button>
-        </form>
+      <div className="min-h-screen bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_92%,black)_0%,var(--background)_100%)] px-4 py-10">
+        <div className="mx-auto flex min-h-[80vh] max-w-7xl items-center justify-center">
+          <form onSubmit={handleLogin} className="w-full max-w-md rounded-2xl border border-border bg-card/65 p-8 shadow-[var(--shadow-card)]">
+            <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← powrót</Link>
+            <div className="mb-6 mt-4 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+              <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-primary">restricted</span>
+              <span>import / administrator</span>
+            </div>
+            <h1 className="mb-2 text-4xl font-bold tracking-tight">Import danych<span className="text-primary">.</span></h1>
+            <p className="mb-6 text-sm leading-relaxed text-muted-foreground">Podaj token administratora, aby uruchomić import dużych plików JSON.</p>
+            <input
+              type="password"
+              autoFocus
+              autoComplete="current-password"
+              placeholder="Token admina"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="h-12 w-full rounded-lg border border-border bg-input px-4 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
+            />
+            {authError && <div className="mt-3 text-sm text-destructive">{authError}</div>}
+            <button
+              type="submit"
+              disabled={authBusy || !token}
+              className="mt-4 h-12 w-full rounded-lg border border-primary/30 bg-primary px-4 font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:opacity-90 disabled:opacity-50"
+            >
+              {authBusy ? "Sprawdzam…" : "Wejdź"}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -309,10 +300,7 @@ export function ImportPage() {
   const mbRead = progress.bytesRead / 1024 / 1024;
   const speed = elapsedSec > 0 ? mbRead / elapsedSec : 0;
   const recPerSec = elapsedSec > 0 ? progress.inserted / elapsedSec : 0;
-  const etaSec =
-    speed > 0 && progress.totalBytes > progress.bytesRead
-      ? (progress.totalBytes - progress.bytesRead) / 1024 / 1024 / speed
-      : 0;
+  const etaSec = speed > 0 && progress.totalBytes > progress.bytesRead ? (progress.totalBytes - progress.bytesRead) / 1024 / 1024 / speed : 0;
   const fmtTime = (s: number) => {
     if (!isFinite(s) || s <= 0) return "—";
     const m = Math.floor(s / 60);
@@ -321,170 +309,131 @@ export function ImportPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-10">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-            ← powrót
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="text-xs text-muted-foreground hover:text-destructive"
-          >
-            wyloguj
-          </button>
-        </div>
-        <h1 className="text-3xl font-bold mt-4 mb-2">Import archivo.json</h1>
-        <p className="text-muted-foreground mb-8">
-          Parser działa w <strong>Web Workerze</strong> — UI nie blokuje się nawet przy plikach
-          400+ MB. Batche po {BATCH_SIZE}.
-        </p>
-
-        <div className="rounded-2xl border border-border bg-card p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-widest text-muted-foreground">
-              Rekordów w bazie
-            </span>
-            <span className="text-3xl font-bold font-mono">{total.toLocaleString()}</span>
-          </div>
-        </div>
-
-        <label
-          className={`block rounded-2xl border-2 border-dashed border-border bg-card/50 p-10 text-center cursor-pointer hover:border-primary transition ${
-            busy ? "opacity-50 pointer-events-none" : ""
-          }`}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFile(f);
-            }}
-          />
-          <div className="text-4xl mb-2">⤓</div>
-          <div className="font-semibold">Kliknij aby wybrać archivo.json</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Obsługa dużych plików (setki MB) — parser w Web Workerze
-          </div>
-        </label>
-
-        {(busy || progress.parsed > 0 || progress.bytesRead > 0) && (
-          <div className="rounded-2xl border border-border bg-card p-6 mt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Status
-                </div>
-                <div className="font-semibold">{phase}</div>
-              </div>
-              {busy && (
-                <button
-                  onClick={handleCancel}
-                  className="px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive text-xs hover:bg-destructive/10"
-                >
-                  Anuluj
-                </button>
-              )}
+    <div className="min-h-screen bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_92%,black)_0%,var(--background)_100%)]">
+      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card shadow-[var(--shadow-card)]">
+              <span className="text-sm font-black text-primary">⌕</span>
             </div>
-
             <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted-foreground">Odczyt pliku</span>
-                <span className="font-mono">
-                  {mbRead.toFixed(1)} / {(progress.totalBytes / 1024 / 1024).toFixed(1)} MB (
-                  {readPct.toFixed(1)}%)
-                </span>
-              </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-200"
-                  style={{ width: `${Math.min(100, readPct)}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div className="rounded-lg bg-muted/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Sparsowane
-                </div>
-                <div className="font-mono font-bold text-lg">
-                  {progress.parsed.toLocaleString()}
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Wstawione
-                </div>
-                <div className="font-mono font-bold text-lg">
-                  {progress.inserted.toLocaleString()}
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Duplikaty
-                </div>
-                <div className="font-mono font-bold text-lg text-muted-foreground">
-                  {progress.skipped.toLocaleString()}
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Batch # / kolejka
-                </div>
-                <div className="font-mono font-bold text-lg">
-                  {progress.batchNum}
-                  <span className="text-muted-foreground text-sm"> / {progress.queuedBatches}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <div className="text-muted-foreground">Czas</div>
-                <div className="font-mono font-semibold">{fmtTime(elapsedSec)}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Prędkość odczytu</div>
-                <div className="font-mono font-semibold">{speed.toFixed(2)} MB/s</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Wstawiane/s</div>
-                <div className="font-mono font-semibold">
-                  {Math.round(recPerSec).toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">ETA odczytu</div>
-                <div className="font-mono font-semibold">{busy ? fmtTime(etaSec) : "—"}</div>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground flex justify-between">
-              <span>Bufor parsera: {progress.bufferKB.toLocaleString()} KB</span>
-              {progress.lastBatchMs > 0 && (
-                <span>Ostatni batch: {(progress.lastBatchMs / 1000).toFixed(2)}s</span>
-              )}
+              <h1 className="text-lg font-bold tracking-tight sm:text-xl">import danych</h1>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">lookup terminal</p>
             </div>
           </div>
-        )}
-
-        {error && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 text-destructive px-4 py-3 mt-6 text-sm">
-            {error}
+          <div className="flex items-center gap-3 text-sm">
+            <Link to="/admin/accounts" className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:text-foreground">Panel admina</Link>
+            <Link to="/" className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:text-foreground">Strona główna</Link>
+            <button onClick={handleLogout} className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:text-destructive">Wyloguj</button>
           </div>
-        )}
+        </div>
+      </header>
 
-        {log.length > 0 && (
-          <pre className="mt-6 rounded-xl border border-border bg-background/60 p-4 text-xs font-mono max-h-64 overflow-auto whitespace-pre-wrap">
-            {log.join("\n")}
-          </pre>
-        )}
-      </div>
+      <main className="px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-5xl">
+          <section className="mb-6 overflow-hidden rounded-2xl border border-border bg-card/65 shadow-[var(--shadow-card)]">
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="border-b border-border/70 p-5 sm:p-8 lg:border-b-0 lg:border-r">
+                <div className="mb-6 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                  <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-primary">archivo.json</span>
+                  <span>worker / batch / import</span>
+                </div>
+                <h2 className="mb-3 text-4xl font-bold tracking-tight sm:text-5xl">Import archivo.json<span className="text-primary">.</span></h2>
+                <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">Parser działa w Web Workerze, więc interfejs pozostaje responsywny nawet przy bardzo dużych plikach.</p>
+              </div>
+              <aside className="bg-background/55 p-5 sm:p-6">
+                <div className="rounded-xl border border-border bg-card/50 p-4">
+                  <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Rekordów w bazie</div>
+                  <div className="text-3xl font-bold font-mono text-primary">{total.toLocaleString()}</div>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <label className={`block cursor-pointer rounded-2xl border-2 border-dashed border-border bg-card/50 p-10 text-center transition hover:border-primary ${busy ? "pointer-events-none opacity-50" : ""}`}>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+              }}
+            />
+            <div className="mb-2 text-4xl">⤓</div>
+            <div className="font-semibold">Kliknij aby wybrać archivo.json</div>
+            <div className="mt-1 text-xs text-muted-foreground">Obsługa dużych plików, parser w Web Workerze, batch {BATCH_SIZE}</div>
+          </label>
+
+          {(busy || progress.parsed > 0 || progress.bytesRead > 0) && (
+            <div className="mt-6 rounded-2xl border border-border bg-card/60 p-6 shadow-[var(--shadow-card)]">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Status</div>
+                  <div className="font-semibold text-foreground">{phase}</div>
+                </div>
+                {busy && <button onClick={handleCancel} className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-semibold text-destructive transition hover:bg-destructive/15">Anuluj</button>}
+              </div>
+
+              <div className="mb-5">
+                <div className="mb-1 flex justify-between text-xs">
+                  <span className="text-muted-foreground">Odczyt pliku</span>
+                  <span className="font-mono">{mbRead.toFixed(1)} / {(progress.totalBytes / 1024 / 1024).toFixed(1)} MB ({readPct.toFixed(1)}%)</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full bg-primary transition-all duration-200" style={{ width: `${Math.min(100, readPct)}%` }} />
+                </div>
+              </div>
+
+              <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Sparsowane" value={progress.parsed.toLocaleString()} />
+                <MetricCard label="Wstawione" value={progress.inserted.toLocaleString()} accent />
+                <MetricCard label="Duplikaty" value={progress.skipped.toLocaleString()} />
+                <MetricCard label="Batch / kolejka" value={`${progress.batchNum} / ${progress.queuedBatches}`} />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Czas" value={fmtTime(elapsedSec)} small />
+                <MetricCard label="Prędkość odczytu" value={`${speed.toFixed(2)} MB/s`} small />
+                <MetricCard label="Wstawiane / s" value={Math.round(recPerSec).toLocaleString()} small />
+                <MetricCard label="ETA odczytu" value={busy ? fmtTime(etaSec) : "—"} small />
+              </div>
+
+              <div className="mt-4 flex flex-wrap justify-between gap-3 text-xs text-muted-foreground">
+                <span>Bufor parsera: {progress.bufferKB.toLocaleString()} KB</span>
+                {progress.lastBatchMs > 0 && <span>Ostatni batch: {(progress.lastBatchMs / 1000).toFixed(2)}s</span>}
+              </div>
+            </div>
+          )}
+
+          {error && <div className="mt-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+
+          {log.length > 0 && (
+            <pre className="mt-6 max-h-72 overflow-auto rounded-xl border border-border bg-background/60 p-4 text-xs whitespace-pre-wrap text-muted-foreground">{log.join("\n")}</pre>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  accent,
+  small,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  small?: boolean;
+}) {
+  return (
+    <div className={`rounded-xl border p-4 ${accent ? "border-primary/30 bg-primary/10" : "border-border bg-background/45"}`}>
+      <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">{label}</div>
+      <div className={`${small ? "text-lg" : "text-xl"} mt-1 font-mono font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value}</div>
     </div>
   );
 }

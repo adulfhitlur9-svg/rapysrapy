@@ -8,6 +8,8 @@ import {
   adminDeleteAccount,
 } from "@/server/auth.functions";
 import { HashesTab } from "@/components/admin/HashesTab";
+import { useAuth } from "@/lib/auth-context";
+import { RANK_LABELS, type AccountRank } from "@/lib/ranks";
 
 export const Route = createFileRoute("/_authenticated/_admin/admin/accounts")({
   head: () => ({
@@ -28,6 +30,7 @@ type Account = {
   last_login_ip: string | null;
   last_login_at: string | null;
   role: "user" | "admin";
+  rank: AccountRank;
   banned: boolean;
   ban_reason: string | null;
   banned_at: string | null;
@@ -54,6 +57,7 @@ type LoginLog = {
 };
 
 function AdminAccountsPage() {
+  const { user, logout } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [logs, setLogs] = useState<LoginLog[]>([]);
@@ -74,7 +78,9 @@ function AdminAccountsPage() {
       if (a.ok) {
         setAccounts(a.accounts as Account[]);
         setStats(a.stats);
-      } else setError(a.error);
+      } else {
+        setError(a.error);
+      }
       if (l.ok) setLogs(l.logs as LoginLog[]);
     } finally {
       setBusy(false);
@@ -83,7 +89,6 @@ function AdminAccountsPage() {
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleBan = async (acc: Account) => {
@@ -117,267 +122,348 @@ function AdminAccountsPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-            ← powrót
-          </Link>
-          <div className="flex gap-2">
+    <div className="min-h-screen bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_92%,black)_0%,var(--background)_100%)]">
+      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card shadow-[var(--shadow-card)]">
+              <span className="text-sm font-black text-primary">⌕</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight sm:text-xl">panel administracyjny</h1>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">lookup terminal</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-sm">
+            {user && (
+              <span className="hidden items-center gap-2 text-muted-foreground lg:flex">
+                <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">operator</span>
+                <span className="font-mono font-semibold text-foreground">{user.nick}</span>
+                <span className="rounded-md border border-border bg-card px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                  {RANK_LABELS[user.rank]}
+                </span>
+              </span>
+            )}
+            <Link
+              to="/"
+              className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
+            >
+              Strona główna
+            </Link>
             <Link
               to="/admin/import"
-              className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted"
+              className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
             >
               Import danych
             </Link>
+            <button
+              onClick={() => logout()}
+              className="rounded-md border border-border bg-card px-3 py-2 text-muted-foreground transition hover:text-destructive"
+            >
+              Wyloguj
+            </button>
           </div>
         </div>
+      </header>
 
-        <h1 className="text-3xl font-bold mb-2">Panel admina</h1>
-        <p className="text-muted-foreground mb-6">Konta użytkowników, audit log, statystyki.</p>
-
-        {/* statystyki */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            <StatCard label="Wszystkie konta" value={stats.total} />
-            <StatCard label="Ostatnie 24h" value={stats.last24h} accent />
-            <StatCard label="Ostatnie 7 dni" value={stats.last7d} />
-            <StatCard label="Ostatnie 30 dni" value={stats.last30d} />
-            <StatCard label="Zbanowane" value={stats.banned} danger />
-          </div>
-        )}
-
-        {/* taby */}
-        <div className="flex gap-2 mb-4 border-b border-border">
-          <button
-            onClick={() => setTab("accounts")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
-              tab === "accounts"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Konta ({accounts.length})
-          </button>
-          <button
-            onClick={() => setTab("logs")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
-              tab === "logs"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Logi logowań ({logs.length})
-          </button>
-          <button
-            onClick={() => setTab("hashes")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
-              tab === "hashes"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Hashe haseł
-          </button>
-        </div>
-
-        {tab === "accounts" && (
-          <>
-            <div className="flex flex-wrap gap-3 mb-4 items-center">
-              <input
-                type="text"
-                placeholder="Szukaj po nicku lub mailu…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && reload()}
-                className="flex-1 min-w-[200px] px-4 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                onClick={reload}
-                disabled={busy}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
-              >
-                Szukaj
-              </button>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showPasswords}
-                  onChange={(e) => setShowPasswords(e.target.checked)}
-                />
-                pokaż hasła
-              </label>
-            </div>
-
-            {error && (
-              <div className="mb-4 px-4 py-2 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-sm">
-                {error}
+      <main className="px-4 pb-16 pt-8 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <section className="mb-6 overflow-hidden rounded-2xl border border-border bg-card/65 shadow-[var(--shadow-card)]">
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="border-b border-border/70 p-5 sm:p-8 lg:border-b-0 lg:border-r">
+                <div className="mb-6 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                  <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-primary">control center</span>
+                  <span>konta / logi / hashe</span>
+                </div>
+                <h2 className="mb-3 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+                  Zarządzaj systemem<span className="text-primary">.</span>
+                </h2>
+                <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                  Jeden widok do zarządzania kontami, monitorowania logowań i obsługi odzyskanych haseł.
+                </p>
               </div>
-            )}
 
-            <div className="rounded-2xl border border-border bg-card overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3 text-left">Nick</th>
-                    <th className="px-3 py-3 text-left">Email</th>
-                    <th className="px-3 py-3 text-left">Hasło</th>
-                    <th className="px-3 py-3 text-left">Reg. IP</th>
-                    <th className="px-3 py-3 text-left">Ostatnie IP</th>
-                    <th className="px-3 py-3 text-left">Utworzono</th>
-                    <th className="px-3 py-3 text-left">Status</th>
-                    <th className="px-3 py-3 text-right">Akcje</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.map((a) => (
-                    <tr key={a.id} className="border-t border-border hover:bg-muted/20">
-                      <td className="px-3 py-2 font-mono font-semibold">
-                        {a.nick}
-                        {a.role === "admin" && (
-                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">
-                            ADMIN
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">{a.email}</td>
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {showPasswords ? a.password : "••••••••"}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">{a.registration_ip ?? "—"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{a.last_login_ip ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {new Date(a.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2">
-                        {a.banned ? (
-                          <span className="text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive">
-                            BAN{a.ban_reason ? `: ${a.ban_reason}` : ""}
-                          </span>
-                        ) : (
-                          <span className="text-xs px-2 py-0.5 rounded bg-success/20 text-success">
-                            OK
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => handleBan(a)}
-                          className="text-xs px-2 py-1 rounded border border-border hover:bg-muted mr-1"
-                        >
-                          {a.banned ? "Unban" : "Ban"}
-                        </button>
-                        <button
-                          onClick={() => handleReset(a)}
-                          className="text-xs px-2 py-1 rounded border border-border hover:bg-muted mr-1"
-                        >
-                          Reset hasła
-                        </button>
-                        <button
-                          onClick={() => handleDelete(a)}
-                          className="text-xs px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10"
-                        >
-                          Usuń
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {accounts.length === 0 && !busy && (
-                    <tr>
-                      <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
-                        Brak kont
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {tab === "logs" && (
-          <div className="rounded-2xl border border-border bg-card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-3 text-left">Data</th>
-                  <th className="px-3 py-3 text-left">Nick</th>
-                  <th className="px-3 py-3 text-left">IP</th>
-                  <th className="px-3 py-3 text-left">Wynik</th>
-                  <th className="px-3 py-3 text-left">User-Agent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((l) => (
-                  <tr key={l.id} className="border-t border-border hover:bg-muted/20">
-                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(l.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{l.nick_attempted ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{l.ip ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      {l.success ? (
-                        <span className="text-xs px-2 py-0.5 rounded bg-success/20 text-success">
-                          OK{l.failure_reason ? ` (${l.failure_reason})` : ""}
-                        </span>
-                      ) : (
-                        <span className="text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive">
-                          FAIL{l.failure_reason ? `: ${l.failure_reason}` : ""}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground truncate max-w-xs">
-                      {l.user_agent ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-                {logs.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
-                      Brak logów
-                    </td>
-                  </tr>
+              <aside className="bg-background/55 p-5 sm:p-6">
+                {stats ? (
+                  <div className="grid gap-3">
+                    <AdminStatCard label="Wszystkie konta" value={stats.total} />
+                    <AdminStatCard label="Ostatnie 24h" value={stats.last24h} accent="primary" />
+                    <AdminStatCard label="Ostatnie 7 dni" value={stats.last7d} />
+                    <AdminStatCard label="Ostatnie 30 dni" value={stats.last30d} />
+                    <AdminStatCard label="Zbanowane" value={stats.banned} accent="danger" />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-border bg-card/50 p-4 text-sm text-muted-foreground">
+                    Ładowanie statystyk…
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </aside>
+            </div>
+          </section>
 
-        {tab === "hashes" && <HashesTab />}
-      </div>
+          <section className="mb-6 flex flex-wrap gap-3">
+            <AdminTabButton active={tab === "accounts"} onClick={() => setTab("accounts")}>
+              Konta <span className="text-muted-foreground">({accounts.length})</span>
+            </AdminTabButton>
+            <AdminTabButton active={tab === "logs"} onClick={() => setTab("logs")}>
+              Logi <span className="text-muted-foreground">({logs.length})</span>
+            </AdminTabButton>
+            <AdminTabButton active={tab === "hashes"} onClick={() => setTab("hashes")}>
+              Hashe
+            </AdminTabButton>
+          </section>
+
+          {tab === "accounts" && (
+            <section className="rounded-2xl border border-border bg-card/60 p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <div className="mb-5 flex flex-wrap items-center gap-3">
+                <div className="relative min-w-[220px] flex-1">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">⌕</span>
+                  <input
+                    type="text"
+                    placeholder="Szukaj po nicku lub mailu…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && reload()}
+                    className="h-12 w-full rounded-lg border border-border bg-input pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <button
+                  onClick={reload}
+                  disabled={busy}
+                  className="h-12 rounded-lg border border-primary/30 bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy ? "Ładowanie…" : "Odśwież"}
+                </button>
+                <label className="flex h-12 items-center gap-3 rounded-lg border border-border bg-background/60 px-4 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={showPasswords}
+                    onChange={(e) => setShowPasswords(e.target.checked)}
+                    className="h-4 w-4 accent-[var(--color-primary)]"
+                  />
+                  Pokaż hasła
+                </label>
+              </div>
+
+              {error && (
+                <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <div className="overflow-x-auto rounded-2xl border border-border bg-background/45">
+                <table className="w-full min-w-[1120px] text-sm">
+                  <thead className="bg-muted/30 text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Konto</th>
+                      <th className="px-4 py-3 text-left">Email</th>
+                      <th className="px-4 py-3 text-left">Hasło</th>
+                      <th className="px-4 py-3 text-left">Reg. IP</th>
+                      <th className="px-4 py-3 text-left">Ostatnie IP</th>
+                      <th className="px-4 py-3 text-left">Utworzono</th>
+                      <th className="px-4 py-3 text-left">Status</th>
+                      <th className="px-4 py-3 text-right">Akcje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.map((a) => (
+                      <tr key={a.id} className="border-t border-border/80 transition hover:bg-muted/20">
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-semibold text-foreground">{a.nick}</span>
+                              <span className="rounded-md border border-border bg-card px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                                {RANK_LABELS[a.rank]}
+                              </span>
+                              {a.role === "admin" && (
+                                <span className="rounded-md border border-accent/30 bg-accent/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
+                                  legacy admin
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">logowanie: {a.last_login_at ? new Date(a.last_login_at).toLocaleString() : "—"}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.email}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-foreground">{showPasswords ? a.password : "••••••••"}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.registration_ip ?? "—"}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.last_login_ip ?? "—"}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-3">
+                          {a.banned ? (
+                            <span className="inline-flex rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-destructive">
+                              ban{a.ban_reason ? ` · ${a.ban_reason}` : ""}
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-md border border-success/30 bg-success/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-success">
+                              aktywne
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            <ActionButton onClick={() => handleBan(a)} variant={a.banned ? "success" : "danger"}>
+                              {a.banned ? "Unban" : "Ban"}
+                            </ActionButton>
+                            <ActionButton onClick={() => handleReset(a)}>Reset hasła</ActionButton>
+                            <ActionButton onClick={() => handleDelete(a)} variant="danger">
+                              Usuń
+                            </ActionButton>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {accounts.length === 0 && !busy && (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                          Brak kont dla podanego filtra.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {tab === "logs" && (
+            <section className="rounded-2xl border border-border bg-card/60 p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight">Logi logowań</h3>
+                  <p className="text-sm text-muted-foreground">Ostatnie próby logowania i ich wynik.</p>
+                </div>
+                <button
+                  onClick={reload}
+                  disabled={busy}
+                  className="rounded-lg border border-border bg-background/60 px-4 py-2 text-sm text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+                >
+                  {busy ? "Odświeżanie…" : "Odśwież"}
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-border bg-background/45">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead className="bg-muted/30 text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Data</th>
+                      <th className="px-4 py-3 text-left">Nick</th>
+                      <th className="px-4 py-3 text-left">IP</th>
+                      <th className="px-4 py-3 text-left">Wynik</th>
+                      <th className="px-4 py-3 text-left">User-Agent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map((l) => (
+                      <tr key={l.id} className="border-t border-border/80 transition hover:bg-muted/20">
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{new Date(l.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{l.nick_attempted ?? "—"}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{l.ip ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          {l.success ? (
+                            <span className="inline-flex rounded-md border border-success/30 bg-success/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-success">
+                              ok{l.failure_reason ? ` · ${l.failure_reason}` : ""}
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-destructive">
+                              fail{l.failure_reason ? ` · ${l.failure_reason}` : ""}
+                            </span>
+                          )}
+                        </td>
+                        <td className="max-w-xs px-4 py-3 text-xs text-muted-foreground">{l.user_agent ?? "—"}</td>
+                      </tr>
+                    ))}
+                    {logs.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                          Brak logów.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {tab === "hashes" && (
+            <section className="rounded-2xl border border-border bg-card/60 p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <HashesTab />
+            </section>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
 
-function StatCard({
+function AdminTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg border px-4 py-2.5 text-sm font-semibold transition ${
+        active
+          ? "border-primary/30 bg-primary/10 text-foreground shadow-[var(--shadow-glow)]"
+          : "border-border bg-card/50 text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AdminStatCard({
   label,
   value,
   accent,
-  danger,
 }: {
   label: string;
   value: number;
-  accent?: boolean;
-  danger?: boolean;
+  accent?: "primary" | "danger";
 }) {
+  const tone =
+    accent === "danger"
+      ? "border-destructive/30 bg-destructive/10 text-destructive"
+      : accent === "primary"
+        ? "border-primary/30 bg-primary/10 text-primary"
+        : "border-border bg-card/50 text-foreground";
+
   return (
-    <div
-      className={`rounded-xl border p-4 ${
-        danger
-          ? "border-destructive/30 bg-destructive/5"
-          : accent
-            ? "border-primary/30 bg-primary/5"
-            : "border-border bg-card"
-      }`}
-    >
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div
-        className={`text-2xl font-bold font-mono mt-1 ${
-          danger ? "text-destructive" : accent ? "text-primary" : ""
-        }`}
-      >
-        {value.toLocaleString()}
-      </div>
+    <div className={`rounded-xl border p-4 ${tone}`}>
+      <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-muted-foreground">{label}</div>
+      <div className="text-2xl font-bold font-mono">{value.toLocaleString()}</div>
     </div>
+  );
+}
+
+function ActionButton({
+  children,
+  onClick,
+  variant = "default",
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  variant?: "default" | "danger" | "success";
+}) {
+  const tone =
+    variant === "danger"
+      ? "border-destructive/30 text-destructive hover:bg-destructive/10"
+      : variant === "success"
+        ? "border-success/30 text-success hover:bg-success/10"
+        : "border-border text-muted-foreground hover:bg-muted/30 hover:text-foreground";
+
+  return (
+    <button onClick={onClick} className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${tone}`}>
+      {children}
+    </button>
   );
 }
