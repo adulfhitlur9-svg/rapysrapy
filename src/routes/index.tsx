@@ -27,6 +27,60 @@ type HistoryEntry = { name: string; at: number; found: boolean };
 const HISTORY_KEY = "userlookup_history_v1";
 const HISTORY_MAX = 20;
 
+const CHAT_CHANNELS = [
+  { name: "global_chat", label: "Global chat", active: true },
+  { name: "staff_room", label: "Staff room" },
+  { name: "dev_log", label: "Dev log" },
+  { name: "marketplace", label: "Marketplace" },
+  { name: "support", label: "Support" },
+] as const;
+
+const CHAT_MESSAGES = [
+  {
+    id: "system",
+    author: "SYSTEM",
+    role: "alert",
+    time: "14:02:45 UTC",
+    tone: "warning" as const,
+    message:
+      "Rutynowy skan bezpieczeństwa zakończony. Nie wykryto anomalii logowania. Następny skan za 24h.",
+  },
+  {
+    id: "neo",
+    author: "neo_hacker99",
+    role: "gracz",
+    time: "14:05:12 UTC",
+    tone: "neutral" as const,
+    message:
+      "Czy ktoś wie, kiedy planowany jest restart bazy danych? Mam kilka skryptów, które muszę zatrzymać przed tym.",
+  },
+  {
+    id: "admin",
+    author: "CyberAdmin",
+    role: "admin",
+    time: "14:07:30 UTC",
+    tone: "accent" as const,
+    message:
+      "Restart zaplanowany jest na 02:00 UTC. System wyśle automatyczne powiadomienie 30 minut przed rozpoczęciem procedury na kanale #dev-log.",
+  },
+  {
+    id: "shadow",
+    author: "shadow_trader",
+    role: "flagged",
+    time: "14:15:00 UTC",
+    tone: "danger" as const,
+    message:
+      "Kupię dostęp do węzłów V4. Płatność w krypto. PW.",
+    note: "Wiadomość ukryta przez filtr słów kluczowych.",
+  },
+] as const;
+
+const CHAT_MEMBERS = {
+  administration: ["CyberAdmin"],
+  moderators: ["SysWatcher", "DataGuard"],
+  players: ["neo_hacker99", "pixel_queen", "user_8842", "incognito", "OskarWas013"],
+} as const;
+
 function loadHistory(): HistoryEntry[] {
   if (typeof window === "undefined") return [];
   try {
