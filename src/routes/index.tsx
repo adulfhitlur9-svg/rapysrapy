@@ -604,6 +604,74 @@ function FeatureCard({
   );
 }
 
+function ChatMessageCard({ message }: { message: (typeof CHAT_MESSAGES)[number] }) {
+  const toneStyles = {
+    warning: "border-warning/35 bg-warning/10",
+    neutral: "border-border bg-card/60",
+    accent: "border-accent/35 bg-accent/10",
+    danger: "border-destructive/35 bg-destructive/10",
+  } as const;
+
+  const roleStyles = {
+    alert: "border-warning/30 bg-warning/10 text-warning",
+    gracz: "border-border bg-muted/40 text-muted-foreground",
+    admin: "border-accent/30 bg-accent/15 text-accent",
+    flagged: "border-destructive/30 bg-destructive/15 text-destructive",
+  } as const;
+
+  return (
+    <article className={`rounded-xl border p-4 shadow-[var(--shadow-card)] ${toneStyles[message.tone]}`}>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-mono font-bold text-foreground">{message.author}</span>
+        <span className="text-muted-foreground">{message.time}</span>
+        <span
+          className={`rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${roleStyles[message.role]}`}
+        >
+          {message.role}
+        </span>
+      </div>
+      <p className="max-w-3xl text-sm leading-relaxed text-foreground/90">{message.message}</p>
+      {message.note && <div className="mt-3 text-xs font-medium text-destructive">● {message.note}</div>}
+    </article>
+  );
+}
+
+function UsersGroup({
+  title,
+  count,
+  users,
+  tone,
+}: {
+  title: string;
+  count: number;
+  users: readonly string[];
+  tone: "accent" | "warning" | "primary";
+}) {
+  const toneStyles = {
+    accent: "bg-accent",
+    warning: "bg-warning",
+    primary: "bg-primary",
+  } as const;
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+        <span>{title}</span>
+        <span>·</span>
+        <span>{count}</span>
+      </div>
+      <ul className="space-y-3">
+        {users.map((username) => (
+          <li key={username} className="flex items-center gap-3">
+            <span className={`h-2.5 w-2.5 rounded-full ${toneStyles[tone]}`} />
+            <span className="font-mono text-sm text-foreground">{username}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function NotFoundCard({
   submittedName,
   error,
