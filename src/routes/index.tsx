@@ -214,7 +214,7 @@ function HomePage() {
                         </button>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                      <div className="mt-3 flex items-center justify-start gap-3 text-xs">
                         <button
                           type="button"
                           onClick={() => setShowAdvanced((v) => !v)}
@@ -223,7 +223,6 @@ function HomePage() {
                           <span className="text-primary">{showAdvanced ? "▼" : "▶"}</span>
                           Zaawansowane opcje wyszukiwania
                         </button>
-                        {history.length > 0 && <span className="text-muted-foreground">Historia: {history.length}/20</span>}
                       </div>
                     </form>
 
@@ -332,7 +331,7 @@ function HomePage() {
           </section>
 
           {!result && !loading && (
-            <section className="mb-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <section className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <FeatureCard title="Status premium" description="Sprawdź, czy gracz posiada aktywne premium." accent="success" />
               <FeatureCard title="Powiązane konta" description="Zobacz inne konta z tego samego IP lub Discorda." accent="primary" />
               <FeatureCard title="Historia nicków" description="Łatwiej wyłapiesz zmiany nicku i alternatywne wpisy." accent="warning" />
@@ -342,6 +341,13 @@ function HomePage() {
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
             <div className="min-w-0">
+              {!result && !loading && user && (
+                <div className="mb-6 rounded-2xl border border-dashed border-border bg-card/30 p-8 text-center text-muted-foreground">
+                  <div className="mb-3 text-4xl">⌕</div>
+                  <p className="text-sm">Wyniki wyszukiwania pojawią się tutaj po wpisaniu nicku.</p>
+                </div>
+              )}
+
               {loading && (
                 <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card/50 py-20 text-center text-muted-foreground">
                   <Spinner large />
@@ -365,50 +371,9 @@ function HomePage() {
               )}
 
               {!loading && result?.found && result.user && <UserCard user={result.user} />}
-
-              {!result && !loading && user && (
-                <div className="rounded-2xl border border-dashed border-border bg-card/30 p-10 text-center text-muted-foreground">
-                  <div className="mb-3 text-4xl">⌕</div>
-                  <p className="text-sm">Wyniki wyszukiwania pojawią się tutaj po wpisaniu nicku.</p>
-                </div>
-              )}
             </div>
 
-            {user && (
-              <aside className="self-start rounded-2xl border border-border bg-card/50 p-4 lg:sticky lg:top-24">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Historia</h3>
-                  {history.length > 0 && (
-                    <button onClick={clearHistory} className="text-xs text-muted-foreground transition hover:text-destructive">
-                      Wyczyść
-                    </button>
-                  )}
-                </div>
-                {history.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-muted-foreground">Brak wyszukiwań.</p>
-                ) : (
-                  <ul className="max-h-[500px] space-y-1 overflow-y-auto pr-1">
-                    {history.map((h) => (
-                      <li key={h.name + h.at}>
-                        <button
-                          onClick={() => {
-                            setQuery(h.name);
-                            runSearch(h.name, fuzzy);
-                          }}
-                          className="group flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition hover:bg-muted"
-                        >
-                          <span className="flex items-center gap-2 truncate font-mono text-sm">
-                            <span className={`h-1.5 w-1.5 rounded-full ${h.found ? "bg-success" : "bg-warning"}`} />
-                            {h.name}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground opacity-0 transition group-hover:opacity-100">{timeAgo(h.at)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </aside>
-            )}
+            {user && <aside className="hidden lg:block" />}
           </div>
         </div>
       </main>
